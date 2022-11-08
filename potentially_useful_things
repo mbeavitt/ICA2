@@ -1,0 +1,15 @@
+# Created 08/11/2022 by Michael Beavitt
+# A list of potentially useful commands etc. for the assignment
+
+
+# This finds all the pubmed entries using the term "lycopene cyclase", and then ALSO finds related papers
+esearch -db pubmed -query "lycopene cyclase" | elink -related |
+
+# This, added onto the last command, will link from the pubmed entries to the protein database and find the sequences!
+elink -target protein |
+
+# This, added onto the last command will FILTER BY ORGANISM, and only search the refseq database
+efilter -organism mouse -source refseq |
+
+# Finally, fetching the resultant ~43 sequences
+efetch -format fasta
