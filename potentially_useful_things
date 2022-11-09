@@ -13,3 +13,6 @@ efilter -organism mouse -source refseq |
 
 # Finally, fetching the resultant ~43 sequences
 efetch -format fasta
+
+# A quick awk script to split fasta entries by any character
+awk '/^>/ {print "[anychar]"; next;}; {print;}' sequences.fa
