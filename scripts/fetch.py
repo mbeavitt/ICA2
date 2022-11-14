@@ -1,5 +1,6 @@
 #!/bin/python3
 
-import os
+from subprocess import check_output
 
-subprocess.call("")
+test_output = check_output('esearch -db protein -query "pyruvate dehydrogenase" | efilter -organism "Durotheca rogersii" | efetch -format fasta', shell = True)
+print(test_output.decode('utf-8').strip('\n'))
