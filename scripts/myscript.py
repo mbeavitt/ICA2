@@ -33,8 +33,8 @@ fasta_seqs_list = fasta_seqs.split('>')
 # Filtering pesky empty list strings
 fasta_seqs_list = list(filter(None, fasta_seqs_list))
 
+list_of_rows=[]
 # Slightly roundabout way of getting values to populate my dataframe...
-# Note, the documentation wants me to not use the dataframe.append method, however I cannot be arsed working out the .concat method right now. to be done in future. Currently, everything works...
 for entry in fasta_seqs_list:
     accession_code = entry.split()[0]
     protein_name = re.search(r'(?<=' + accession_code + r')(.*)(?=\[)', entry).group(1).strip()
@@ -42,10 +42,11 @@ for entry in fasta_seqs_list:
     genus = species_block[0]
     species = species_block[1]
     sequence = ''.join(entry.split('\n')[1:])
-    dataframe_row = [accession_code, protein_name, genus, species, sequence]
-    temp_df = pd.DataFrame([dataframe_row], columns=['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
-    seq_data = seq_data.append(temp_df, ignore_index=True)
+# Creating a list of lists that are rows of my final dataframe
+    list_of_rows.append([accession_code, protein_name, genus, species, sequence])
 
+# Creating the dataframe, with relevant column names...
+seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
 
 # I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
 file_for_msa = open("seqs.fa", "w")
