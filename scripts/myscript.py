@@ -16,8 +16,8 @@ args_parser = argparse.ArgumentParser(
     epilog = "<content to be added>")
 
 # Adding arguments...
-args_parser.add_argument('--protein', dest='protein', default="pyruvate dehydrogenase", help = "protein query (e.g. \"Pyruvate dehydrogenase\")")
-args_parser.add_argument('--group', dest='grouping', default="Ascomycota", help = "group query (e.g. \"Ascomycota\")")
+args_parser.add_argument('--protein', dest='protein', required=True, help = "protein query (e.g. \"Pyruvate dehydrogenase\")")
+args_parser.add_argument('--group', dest='grouping', required=True, help = "group query (e.g. \"Ascomycota\")")
 args_parser.add_argument('--database', dest='database', default="protein", help = "NCBI database to query (e.g. \"protein\")")
 
 # assigning parsed args to variable
@@ -30,6 +30,7 @@ seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Specie
 # Fetching sequences the easy (boring) way
 fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] NOT partial[Properties]\" | efilter -organism \"{args.grouping}\" | efetch -format fasta", shell = True).decode('utf-8')
 fasta_seqs_list = fasta_seqs.split('>')
+print("got sequences!")
 # Filtering pesky empty list strings
 fasta_seqs_list = list(filter(None, fasta_seqs_list))
 
@@ -53,8 +54,11 @@ file_for_msa = open("seqs.fa", "w")
 file_for_msa.write(fasta_seqs)
 file_for_msa.close()
 
+print("running MSA...")
 # modified from python docs examples. Might be a more robust way of doing it?
 subprocess.run("clustalo --auto --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+
+print("running plotcon...")
 subprocess.run("plotcon align.msf -winsize 10 -graph png", shell=True)
 
 # Takes an argument of an optional infile/outfile. if none is provided, it takes the standard input. 'nargs='?'' specifies that these are optional.
