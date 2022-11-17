@@ -28,14 +28,14 @@ args = args_parser.parse_args()
 seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
 
 # Fetching sequences the easy (boring) way
-fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] NOT partial[Properties]\" | efilter -organism \"{args.grouping}\" | efetch -format fasta", shell = True)
-temp_seqs = fasta_seqs.decode('utf-8').split('>')
+fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] NOT partial[Properties]\" | efilter -organism \"{args.grouping}\" | efetch -format fasta", shell = True).decode('utf-8')
+fasta_seqs_list = fasta_seqs.split('>')
 # Filtering pesky empty list strings
-temp_seqs = list(filter(None, temp_seqs))
+fasta_seqs_list = list(filter(None, fasta_seqs_list))
 
 # Slightly roundabout way of getting values to populate my dataframe...
 # Note, the documentation wants me to not use the dataframe.append method, however I cannot be arsed working out the .concat method right now. to be done in future. Currently, everything works...
-for entry in temp_seqs:
+for entry in fasta_seqs_list:
     accession_code = entry.split()[0]
     protein_name = re.search(r'(?<=' + accession_code + r')(.*)(?=\[)', entry).group(1).strip()
     species_block = re.search(r'(?<=\[)(.*)(?=\])', entry).group(1).split()
@@ -43,11 +43,19 @@ for entry in temp_seqs:
     species = species_block[1]
     sequence = ''.join(entry.split('\n')[1:])
     dataframe_row = [accession_code, protein_name, genus, species, sequence]
-    print(dataframe_row)
     temp_df = pd.DataFrame([dataframe_row], columns=['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
     seq_data = seq_data.append(temp_df, ignore_index=True)
 
-print(seq_data)
+
+# I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
+file_for_msa = open("seqs.fa", "w")
+file_for_msa.write(fasta_seqs)
+file_for_msa.close()
+
+# modified from python docs examples. Might be a more robust way of doing it?
+subprocess.run("clustalo --auto --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+subprocess.run("plotcon align.msf -winsize 10 -graph png", shell=True)
+
 # Takes an argument of an optional infile/outfile. if none is provided, it takes the standard input. 'nargs='?'' specifies that these are optional.
 #parser.add_argument('infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
 #parser.add_argument('outfile', nargs='?', type=argparse.FileType('w'), default=sys.stdout)
