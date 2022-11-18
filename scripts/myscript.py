@@ -8,6 +8,7 @@ import subprocess
 #import requests
 import re
 import pandas as pd
+import pprint
 
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
 args_parser = argparse.ArgumentParser(
@@ -38,9 +39,6 @@ fasta_seqs_list = fasta_seqs.split('>')
 print("got sequences!")
 # Filtering pesky empty list strings
 fasta_seqs_list = list(filter(None, fasta_seqs_list))
-for entry in fasta_seqs_list:
-    print(entry)
-
 
 list_of_rows=[]
 # Slightly roundabout way of getting values to populate my dataframe...
@@ -57,7 +55,10 @@ for entry in fasta_seqs_list:
 #print(list_of_rows)
 # Creating the dataframe, with relevant column names...
 seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
-#print(seq_data)
+seq_data['Binomial'] = seq_data['Genus'].map(str) + " " + seq_data['Species'].map(str)
+print(seq_data)
+print(seq_data['Genus'].unique())
+print(seq_data['Binomial'].unique())
 
 # I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
 file_for_msa = open("seqs.fa", "w")
@@ -82,14 +83,21 @@ for file in clusterfile:
     value = re.search(r'(?<=index)(.*)(?=\()', file).group(1).strip()
     key_value_tuples.append((key, value))
 
+# Creating a dictionary of index lists
 for key, value in key_value_tuples:
     cluster_dict.setdefault(key, []).append(value)
 
+#print(cluster_dict.keys())
 
+#Processing the resultant groups to present to the user
+for key in cluster_dict.keys():
+    index_list = cluster_dict[key]
+    print("GROUP " + key + ":")
+    seq_data.iloc[index_list]
 #print(key_value_tuples)
-print(seq_data)
-print(cluster_dict['0'])
-
+#print(seq_data)
+#test_index_list = cluster_dict['0']
+#print(seq_data.iloc[test_index_list])
 
 # An attempt to design a grouping system around percent identity - abandoned in favour of distance grouping
 #pi_dist_mat = open("distmat.txt", "r").read().split('\n')
