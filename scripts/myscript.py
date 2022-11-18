@@ -38,6 +38,9 @@ fasta_seqs_list = fasta_seqs.split('>')
 print("got sequences!")
 # Filtering pesky empty list strings
 fasta_seqs_list = list(filter(None, fasta_seqs_list))
+for entry in fasta_seqs_list:
+    print(entry)
+
 
 list_of_rows=[]
 # Slightly roundabout way of getting values to populate my dataframe...
@@ -68,9 +71,13 @@ clusterfile = open("clusterfile.txt", "r").read().split('\n')
 clusterfile =  list(filter(None, clusterfile))
 
 #print(clusterfile)
+
+#A couple of fun little for loops that iterate through the cluster file, picking out relevant values using regex and making them into a dictionary where the key is the group number and the value is a list of indexes for my seq_data dataframe
+# Initialising some variables...
 key_value_tuples = []
 cluster_dict = {}
 for file in clusterfile:
+#    Extracting the bits I want using regex
     key = re.search(r'(?<=Cluster)(.*)(?=\:)', file).group(1).strip()
     value = re.search(r'(?<=index)(.*)(?=\()', file).group(1).strip()
     key_value_tuples.append((key, value))
@@ -78,8 +85,10 @@ for file in clusterfile:
 for key, value in key_value_tuples:
     cluster_dict.setdefault(key, []).append(value)
 
+
 #print(key_value_tuples)
-print(cluster_dict)
+print(seq_data)
+print(cluster_dict['0'])
 
 
 # An attempt to design a grouping system around percent identity - abandoned in favour of distance grouping
