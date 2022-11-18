@@ -16,13 +16,16 @@ args_parser = argparse.ArgumentParser(
     epilog = "<content to be added>")
 
 # Adding arguments...
-args_parser.add_argument('--protein', dest='protein', required=True, help = "protein query (e.g. \"Pyruvate dehydrogenase\")")
-args_parser.add_argument('--group', dest='grouping', required=True, help = "group query (e.g. \"Ascomycota\")")
+args_parser.add_argument('--protein', dest='protein', required=True, help = "use --protein to define protein query (e.g. \"Pyruvate dehydrogenase\")")
+args_parser.add_argument('--group', dest='grouping', required=True, help = "use --group to define group query (e.g. \"Ascomycota\" or \"txid4890\")")
 args_parser.add_argument('--database', dest='database', default="protein", help = "NCBI database to query (e.g. \"protein\")")
+args_parser.add_argument('--winsize', dest='winsize', default=10, help = "--winsize used to set plotcon winsize, default is 10")
+
+# Argument to forcibly overwrite files
+#args_parser.add_argument('--force', dest='force', action='store_true', help = "Use --force to overwrite files. Default is false.")
 
 # assigning parsed args to variable
 args = args_parser.parse_args()
-#print(args.protein, args.grouping)
 
 # Creating empty dataframe to hold sequence info
 seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
@@ -43,23 +46,39 @@ for entry in fasta_seqs_list:
     genus = species_block[0]
     species = species_block[1]
     sequence = ''.join(entry.split('\n')[1:])
-# Creating a list of lists that are rows of my final dataframe
+# Creating a list of 'dataframe rows'
     list_of_rows.append([accession_code, protein_name, genus, species, sequence])
 
+#print(list_of_rows)
 # Creating the dataframe, with relevant column names...
 seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
+#print(seq_data)
 
 # I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
 file_for_msa = open("seqs.fa", "w")
 file_for_msa.write(fasta_seqs)
 file_for_msa.close()
 
-print("running MSA...")
+#print("running MSA...")
 # modified from python docs examples. Might be a more robust way of doing it?
-subprocess.run("clustalo --auto --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+subprocess.run("clustalo --force --full --threads=20 --percent-id --guidetree-out=guidetree.dnd --distmat-out=distmat.txt --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
 
-print("running plotcon...")
-subprocess.run("plotcon align.msf -winsize 10 -graph png", shell=True)
+
+# An attempt to design a grouping system around percent identity - abandoned in favour of distance grouping
+#pi_dist_mat = open("distmat.txt", "r").read().split('\n')
+#pi_dist_mat.pop(0)
+#pi_dist_mat.pop(-1)
+#colnames = []
+#count = 0
+#for i in pi_dist_mat:
+#    pi_dist_mat[count] = i.split()
+#    colnames.append(pi_dist_mat[count][0])
+#    pi_dist_mat[count].pop(0)
+#    count += 1
+#pi_matrix_df = pd.DataFrame(pi_dist_mat, columns = [colnames], index = [colnames])
+
+#print("running plotcon...")
+#subprocess.run(f"plotcon align.msf -winsize {args.winsize} -graph png", shell=True)
 
 # Takes an argument of an optional infile/outfile. if none is provided, it takes the standard input. 'nargs='?'' specifies that these are optional.
 #parser.add_argument('infile', nargs='?', type=argparse.FileType('r'), default=sys.stdin)
