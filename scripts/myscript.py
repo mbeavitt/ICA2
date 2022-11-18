@@ -20,9 +20,11 @@ args_parser.add_argument('--protein', dest='protein', required=True, help = "use
 args_parser.add_argument('--group', dest='grouping', required=True, help = "use --group to define group query (e.g. \"Ascomycota\" or \"txid4890\")")
 args_parser.add_argument('--database', dest='database', default="protein", help = "NCBI database to query (e.g. \"protein\")")
 args_parser.add_argument('--winsize', dest='winsize', default=10, help = "--winsize used to set plotcon winsize, default is 10")
+args_parser.add_argument('--cluster-size', dest='cluster', help = "--cluster-size takes a number, and is used to determine the granularity of the resulting primary alignment. The smaller the number, the more groups will result.")
 
 # Argument to forcibly overwrite files
-#args_parser.add_argument('--force', dest='force', action='store_true', help = "Use --force to overwrite files. Default is false.")
+args_parser.add_argument('--force', dest='force', action='store_true', help = "Use --force to overwrite files. Default is false.")
+
 
 # assigning parsed args to variable
 args = args_parser.parse_args()
@@ -61,7 +63,23 @@ file_for_msa.close()
 
 #print("running MSA...")
 # modified from python docs examples. Might be a more robust way of doing it?
-subprocess.run("clustalo --force --full --threads=20 --percent-id --guidetree-out=guidetree.dnd --distmat-out=distmat.txt --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+subprocess.run("clustalo --force --threads=50 --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+clusterfile = open("clusterfile.txt", "r").read().split('\n')
+clusterfile =  list(filter(None, clusterfile))
+
+#print(clusterfile)
+key_value_tuples = []
+cluster_dict = {}
+for file in clusterfile:
+    key = re.search(r'(?<=Cluster)(.*)(?=\:)', file).group(1).strip()
+    value = re.search(r'(?<=index)(.*)(?=\()', file).group(1).strip()
+    key_value_tuples.append((key, value))
+
+for key, value in key_value_tuples:
+    cluster_dict.setdefault(key, []).append(value)
+
+#print(key_value_tuples)
+print(cluster_dict)
 
 
 # An attempt to design a grouping system around percent identity - abandoned in favour of distance grouping
