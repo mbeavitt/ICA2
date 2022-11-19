@@ -94,6 +94,7 @@ for key in cluster_dict.keys():
 #    print("GROUP " + key + ":")
     fasta_string_group = ""
     group_df = seq_data.iloc[index_list]
+    print(group_df)
 #    Concatenating accession numbers and sequences into a fasta formatted string variable
     for accession, sequence in zip(group_df.Accession, group_df.Sequence):
 #        fasta_string_group = fasta_string_group + ">" + accession + " GROUP " + key + "\n" + sequence + "\n"
@@ -103,6 +104,44 @@ for key in cluster_dict.keys():
     subprocess.run(f"clustalo --auto --force --threads=50 --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
     subprocess.run(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", shell=True)
 #    subprocess.run(f"cons {fasta_string_group}"
+
+
+def groupChoose(group_options):
+
+    possible_choices = []
+    print('Please pick a group number, e.g. for \"Group 1\" enter \"1\". To finish, enter \"f\":')
+    for option in group_options:
+        possible_choices.append(option)
+        print(" -- Group " + option)
+    print("EXIT: f")
+    user_choice = None
+    selected = []
+    while user_choice not in possible_choices:
+        user_input = input('Selection: ')
+        if user_input == "f":
+            print(selected)
+            break
+        if str.isdigit(user_input) == True:
+            input_number = int(user_input)
+        else:
+            print('Please choose a valid group number')
+            continue
+        if input_number > -1 and input_number < len(possible_choices):
+            selected.append(possible_choices[input_number])
+            print('Selected Group: ' + str(input_number))
+        else:
+            print('Please choose a valid group number')
+
+    return selected
+
+
+group_options = {}
+for key in cluster_dict.keys():
+    group_options[key] = f"Group {key}"
+
+user_selection = groupChoose(group_options)
+
+print(seq_data)
 
 #print(key_value_tuples)
 #print(seq_data)
