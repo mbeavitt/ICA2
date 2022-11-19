@@ -36,7 +36,7 @@ seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Specie
 # Fetching sequences the easy (boring) way
 fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] NOT partial[Properties]\" | efilter -organism \"{args.grouping}\" | efetch -format fasta", shell = True).decode('utf-8')
 fasta_seqs_list = fasta_seqs.split('>')
-print("got sequences!")
+#print("got sequences!")
 # Filtering pesky empty list strings
 fasta_seqs_list = list(filter(None, fasta_seqs_list))
 
@@ -56,9 +56,9 @@ for entry in fasta_seqs_list:
 # Creating the dataframe, with relevant column names...
 seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
 seq_data['Binomial'] = seq_data['Genus'].map(str) + " " + seq_data['Species'].map(str)
-print(seq_data)
-print(seq_data['Genus'].unique())
-print(seq_data['Binomial'].unique())
+#print(seq_data)
+#print(seq_data['Genus'].unique())
+#print(seq_data['Binomial'].unique())
 
 # I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
 file_for_msa = open("seqs.fa", "w")
@@ -88,12 +88,22 @@ for key, value in key_value_tuples:
     cluster_dict.setdefault(key, []).append(value)
 
 #print(cluster_dict.keys())
-
 #Processing the resultant groups to present to the user
 for key in cluster_dict.keys():
     index_list = cluster_dict[key]
-    print("GROUP " + key + ":")
-    seq_data.iloc[index_list]
+#    print("GROUP " + key + ":")
+    fasta_string_group = ""
+    group_df = seq_data.iloc[index_list]
+#    Concatenating accession numbers and sequences into a fasta formatted string variable
+    for accession, sequence in zip(group_df.Accession, group_df.Sequence):
+#        fasta_string_group = fasta_string_group + ">" + accession + " GROUP " + key + "\n" + sequence + "\n"
+        fasta_string_group = fasta_string_group + ">" + accession + "\n" + sequence + "\n"
+    with open(f"group_{key}_msa.fa", "w") as groupalign:
+        groupalign.write(fasta_string_group)
+    subprocess.run(f"clustalo --auto --force --threads=50 --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
+    subprocess.run(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", shell=True)
+#    subprocess.run(f"cons {fasta_string_group}"
+
 #print(key_value_tuples)
 #print(seq_data)
 #test_index_list = cluster_dict['0']
