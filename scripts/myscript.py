@@ -104,7 +104,7 @@ args_parser.add_argument('--force', dest='force', action='store_true', help = "U
 args = args_parser.parse_args()
 
 # Creating empty dataframe to hold sequence info
-seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
+seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Full Name', 'Sequence'])
 
 # Fetching sequences the easy (boring) way
 search_query = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | xtract -pattern ENTREZ_DIRECT -element Count", shell=True).decode('utf-8').strip()
@@ -124,41 +124,45 @@ else:
 
 # Fetch sequence data using gpc format
 print("Fetching sequences...")
-fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | efetch -format gpc | xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_definition INSDSeq_organism INSDSeq_sequence", shell = True).decode('utf-8')
+sequence_data = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | efetch -format gpc | xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism INSDSeq_sequence", shell = True).decode('utf-8')
 print("Building dataframe...")
-fasta_seqs_list = fasta_seqs.split('\n')
+seq_data_list = sequence_data.split('\n')
 #print("got sequences!")
 # Filtering pesky empty list strings
-fasta_seqs_list = list(filter(None, fasta_seqs_list))
+seq_data_list = list(filter(None, seq_data_list))
 
 list_of_rows=[]
 # Slightly roundabout way of getting values to populate my dataframe...
-for entry in fasta_seqs_list:
-    accession_code = entry.split()[0]
-    protein_name = re.search(r'(?<=' + accession_code + r')(.*)(?=\[)', entry).group(1).strip()
-    species_block = re.search(r'(?<=\[)(.*)(?=\])', entry).group(1).split()
-    genus = species_block[0]
-    species = species_block[1]
-    sequence = ''.join(entry.split('\n')[1:])
+for entry in seq_data_list:
+    fields = entry.split('\t')
+    accession_code = fields[0]
+# Slightly workaround-y way of specifying the protein name... I couldn't actually figure out how to parse it from either the fasta or gpc files accurately,
+# and I don't want to slow down the program by downloading more than one filetype from NCBI.
+# It may seem unnecessary to even define one (We're only passing one protein argument after all!!)
+# BUT, I would like to keep open the possibility of passing multiple proteins for cross-comparison, so in that regard this is a placeholder.
+    protein_name = args.grouping
+    full_name = fields[1]
+    genus = full_name.split()[0]
+    sequence = fields[2]
 # Creating a list of 'dataframe rows'
-    list_of_rows.append([accession_code, protein_name, genus, species, sequence])
+    list_of_rows.append([accession_code, protein_name, genus, full_name, sequence])
 
 #print(list_of_rows)
 # Creating the dataframe, with relevant column names...
-seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
-seq_data['Binomial'] = seq_data['Genus'].map(str) + " " + seq_data['Species'].map(str)
+seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Full Name', 'Sequence'])
+fasta_string = ""
+for accession, sequence in zip(seq_data.Accession, seq_data.Sequence):
+    fasta_string = fasta_string + ">" + accession + "\n" + sequence + "\n"
+
+with open(f"fasta_formatted.fa", "w") as fasta_formatted_file:
+    fasta_formatted_file.write(fasta_string)
+
 #print(seq_data)
 #print(seq_data['Genus'].unique())
-#print(seq_data['Binomial'].unique())
-
-# I would really rather use variables for the whole process instead of writing to a .fa file, but I don't know how. Maybe this really is the best way to go about it!
-file_for_msa = open("seqs.fa", "w")
-file_for_msa.write(fasta_seqs)
-file_for_msa.close()
 
 print("Running primary MSA...")
 # modified from python docs examples. Might be a more robust way of doing it?
-subprocess.run(f"clustalo --force --threads={args.threads} --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+subprocess.run(f"clustalo --force --threads={args.threads} --clustering-out=clusterfile.txt --outfmt=msf -i fasta_formatted.fa -o align.msf", shell=True)
 clusterfile = open("clusterfile.txt", "r").read().split('\n')
 clusterfile =  list(filter(None, clusterfile))
 
