@@ -9,6 +9,7 @@ import subprocess
 import re
 import pandas as pd
 import pprint
+import os
 
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
 args_parser = argparse.ArgumentParser(
@@ -34,7 +35,22 @@ args = args_parser.parse_args()
 seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Species', 'Sequence'])
 
 # Fetching sequences the easy (boring) way
-fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] NOT partial[Properties]\" | efilter -organism \"{args.grouping}\" | efetch -format fasta", shell = True).decode('utf-8')
+search_query = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | xtract -pattern ENTREZ_DIRECT -element Count", shell=True).decode('utf-8').strip()
+if search_query == 0:
+    print("No sequeces found for these search terms. Please try again, or broaden your search parameters")
+    sys.exit()
+print("\nThe number of sequences in your search are: " + str(search_query) + "." + "\n Would you like to continue...? Please note sequence entries >1000 may take a while to process.")
+continue_ornot = None
+while continue_ornot not in {"y", "n"}:
+    continue_ornot = input("Please enter y/n:")
+
+if continue_ornot == "y":
+    print("Processing...")
+    pass
+else:
+    sys.exit()
+
+fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | efetch -format fasta", shell = True).decode('utf-8')
 fasta_seqs_list = fasta_seqs.split('>')
 #print("got sequences!")
 # Filtering pesky empty list strings
@@ -94,7 +110,6 @@ for key in cluster_dict.keys():
 #    print("GROUP " + key + ":")
     fasta_string_group = ""
     group_df = seq_data.iloc[index_list]
-    print(group_df)
 #    Concatenating accession numbers and sequences into a fasta formatted string variable
     for accession, sequence in zip(group_df.Accession, group_df.Sequence):
 #        fasta_string_group = fasta_string_group + ">" + accession + " GROUP " + key + "\n" + sequence + "\n"
@@ -102,9 +117,10 @@ for key in cluster_dict.keys():
     with open(f"group_{key}_msa.fa", "w") as groupalign:
         groupalign.write(fasta_string_group)
     subprocess.run(f"clustalo --auto --force --threads=50 --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
-    subprocess.run(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", shell=True)
+    subprocess.call(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL, shell=True)
 #    subprocess.run(f"cons {fasta_string_group}"
 
+#def groupDisplay(consensus_list)
 
 def groupChoose(group_options):
 
@@ -113,13 +129,18 @@ def groupChoose(group_options):
     for option in group_options:
         possible_choices.append(option)
         print(" -- Group " + option)
+    print(" -- All Groups")
     print("EXIT: f")
+    print("CLEAR CHOICES: c")
     user_choice = None
     selected = []
     while user_choice not in possible_choices:
         user_input = input('Selection: ')
+        if user_input == "c":
+            selected = []
+            continue
         if user_input == "f":
-            print(selected)
+            print(set(selected))
             break
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
@@ -128,20 +149,33 @@ def groupChoose(group_options):
             continue
         if input_number > -1 and input_number < len(possible_choices):
             selected.append(possible_choices[input_number])
-            print('Selected Group: ' + str(input_number))
+            print("Groups in selection:")
+            is_empty = (len(set(selected)) == 0)
+            print(is_empty)
+            if is_empty == False:
+                for item in set(selected):
+                    print(item)
+            else:
+                print("No groups selected")
         else:
             print('Please choose a valid group number')
 
     return selected
 
-
+consensus_list = []
 group_options = {}
 for key in cluster_dict.keys():
     group_options[key] = f"Group {key}"
+    consensus_list.append(open(f"group_{key}_cons.txt", "r").read())
+
+count = 0
+for cons in consensus_list:
+    consensus_list[count] = "\n".join(cons.split("\n")[1:])
+    print(consensus_list[count] + '\n')
+    count += 1
+
 
 user_selection = groupChoose(group_options)
-
-print(seq_data)
 
 #print(key_value_tuples)
 #print(seq_data)
