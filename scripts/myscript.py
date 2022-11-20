@@ -22,7 +22,8 @@ args_parser.add_argument('--protein', dest='protein', required=True, help = "use
 args_parser.add_argument('--group', dest='grouping', required=True, help = "use --group to define group query (e.g. \"Ascomycota\" or \"txid4890\")")
 args_parser.add_argument('--database', dest='database', default="protein", help = "NCBI database to query (e.g. \"protein\")")
 args_parser.add_argument('--winsize', dest='winsize', default=10, help = "--winsize used to set plotcon winsize, default is 10")
-args_parser.add_argument('--cluster-size', dest='cluster', help = "--cluster-size takes a number, and is used to determine the granularity of the resulting primary alignment. The smaller the number, the more groups will result.")
+args_parser.add_argument('--cluster-size', dest='cluster', type=int, help = "--cluster-size takes a number, and is used to determine the granularity of the resulting primary alignment. The smaller the number, the more groups will result. If --cluster-size is not defined (recommended), the clustalo program will calculate default values based on the attributes of the search.")
+args_parser.add_argument('--threads', dest='threads', default=50, type=int, help = "--threads takes an integer, and is used to determine how many threads to use in all processes that allow thread number choices (currently just clustalo). Default is 50.")
 
 # Argument to forcibly overwrite files
 args_parser.add_argument('--force', dest='force', action='store_true', help = "Use --force to overwrite files. Default is false.")
@@ -49,8 +50,9 @@ if continue_ornot == "y":
     pass
 else:
     sys.exit()
-
+print("Fetching sequences...")
 fasta_seqs = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | efetch -format fasta", shell = True).decode('utf-8')
+print("Building dataframe...")
 fasta_seqs_list = fasta_seqs.split('>')
 #print("got sequences!")
 # Filtering pesky empty list strings
@@ -81,9 +83,9 @@ file_for_msa = open("seqs.fa", "w")
 file_for_msa.write(fasta_seqs)
 file_for_msa.close()
 
-#print("running MSA...")
+print("Running primary MSA...")
 # modified from python docs examples. Might be a more robust way of doing it?
-subprocess.run("clustalo --force --threads=50 --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
+subprocess.run(f"clustalo --force --threads={args.threads} --clustering-out=clusterfile.txt --outfmt=msf -i seqs.fa -o align.msf", shell=True)
 clusterfile = open("clusterfile.txt", "r").read().split('\n')
 clusterfile =  list(filter(None, clusterfile))
 
@@ -91,6 +93,7 @@ clusterfile =  list(filter(None, clusterfile))
 
 #A couple of fun little for loops that iterate through the cluster file, picking out relevant values using regex and making them into a dictionary where the key is the group number and the value is a list of indexes for my seq_data dataframe
 # Initialising some variables...
+print("Building groupings...")
 key_value_tuples = []
 cluster_dict = {}
 for file in clusterfile:
@@ -116,8 +119,10 @@ for key in cluster_dict.keys():
         fasta_string_group = fasta_string_group + ">" + accession + "\n" + sequence + "\n"
     with open(f"group_{key}_msa.fa", "w") as groupalign:
         groupalign.write(fasta_string_group)
-    subprocess.run(f"clustalo --auto --force --threads=50 --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
-    subprocess.call(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL, shell=True)
+    print(f"Re-aligning group {key}...")
+    subprocess.run(f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
+# Calling the conserved sequence generator emboss program, shutting up its annoying "error" messages by sending them to /dev/null... Why does it send the message "Create a consensus sequence from a multiple alignment" to stderr???? Surely it should be to stdout?
+    subprocess.call(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", stderr=subprocess.DEVNULL, shell=True)
 #    subprocess.run(f"cons {fasta_string_group}"
 
 #def groupDisplay(consensus_list)
@@ -129,19 +134,30 @@ def groupChoose(group_options):
     for option in group_options:
         possible_choices.append(option)
         print(" -- Group " + option)
-    print(" -- All Groups")
-    print("EXIT: f")
-    print("CLEAR CHOICES: c")
+    print("\n -- ALL GROUPS: a")
+    print(" -- EXIT: f")
+    print(" -- CLEAR CHOICES: c")
     user_choice = None
     selected = []
     while user_choice not in possible_choices:
         user_input = input('Selection: ')
         if user_input == "c":
             selected = []
+            print("\nGroups in selection:")
+            print("No groups selected")
             continue
         if user_input == "f":
-            print(set(selected))
+            is_empty = (len(set(selected)) == 0)
+            if is_empty == False:
+                print(set(selected))
+            else:
+                print("No groups selected")
             break
+        if user_input == "a":
+            selected = possible_choices
+            print("\nGroups in selection:")
+            print(set(selected))
+            continue
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
         else:
@@ -149,14 +165,8 @@ def groupChoose(group_options):
             continue
         if input_number > -1 and input_number < len(possible_choices):
             selected.append(possible_choices[input_number])
-            print("Groups in selection:")
-            is_empty = (len(set(selected)) == 0)
-            print(is_empty)
-            if is_empty == False:
-                for item in set(selected):
-                    print(item)
-            else:
-                print("No groups selected")
+            print("\nGroups in selection:")
+            print(set(selected))
         else:
             print('Please choose a valid group number')
 
