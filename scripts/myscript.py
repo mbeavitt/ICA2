@@ -217,6 +217,7 @@ for cons in consensus_list:
     print(consensus_list[count] + '\n')
     count += 1
 
+groupSummary(consensus_list)
 
 user_selection = groupChoose(group_options)
 
