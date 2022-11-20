@@ -211,12 +211,6 @@ for key in cluster_dict.keys():
     group_options[key] = f"Group {key}"
     consensus_list.append(open(f"group_{key}_cons.txt", "r").read())
 
-count = 0
-for cons in consensus_list:
-    consensus_list[count] = "\n".join(cons.split("\n")[1:])
-    print(consensus_list[count] + '\n')
-    count += 1
-
 groupSummary(consensus_list)
 
 user_selection = groupChoose(group_options)
