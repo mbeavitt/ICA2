@@ -10,7 +10,8 @@ import re
 import pandas as pd
 import pprint
 import os
-
+import statistics
+from collections import Counter
 #####################################################################################
 # A function for choosing groups formed by clustal omega. The idea is that this     #
 # removes the dependence on species choice/sequence length for narrowing down the   #
@@ -95,7 +96,7 @@ args_parser.add_argument('--database', dest='database', default="protein", help 
 args_parser.add_argument('--winsize', dest='winsize', default=10, help = "--winsize used to set plotcon winsize, default is 10")
 args_parser.add_argument('--cluster-size', dest='cluster', type=int, help = "--cluster-size takes a number, and is used to determine the granularity of the resulting primary alignment. The smaller the number, the more groups will result. If --cluster-size is not defined (recommended), the clustalo program will calculate default values based on the attributes of the search.")
 args_parser.add_argument('--threads', dest='threads', default=50, type=int, help = "--threads takes an integer, and is used to determine how many threads to use in all processes that allow thread number choices (currently just clustalo). Default is 50.")
-
+args_parser.add_argument('--save-group-summary', dest='savesum', action='store_true', help = "--save-group-summary will save the group summary page in this program's output to a .txt file called group_summary.txt.")
 # Argument to forcibly overwrite files
 args_parser.add_argument('--force', dest='force', action='store_true', help = "Use --force to overwrite files. Default is false.")
 
@@ -104,7 +105,7 @@ args_parser.add_argument('--force', dest='force', action='store_true', help = "U
 args = args_parser.parse_args()
 
 # Creating empty dataframe to hold sequence info
-seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Full Name', 'Sequence'])
+seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Full_Name', 'Sequence'])
 
 # Fetching sequences the easy (boring) way
 search_query = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | xtract -pattern ENTREZ_DIRECT -element Count", shell=True).decode('utf-8').strip()
@@ -149,7 +150,7 @@ for entry in seq_data_list:
 
 #print(list_of_rows)
 # Creating the dataframe, with relevant column names...
-seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Full Name', 'Sequence'])
+seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Full_Name', 'Sequence'])
 fasta_string = ""
 for accession, sequence in zip(seq_data.Accession, seq_data.Sequence):
     fasta_string = fasta_string + ">" + accession + "\n" + sequence + "\n"
@@ -183,35 +184,72 @@ for file in clusterfile:
 for key, value in key_value_tuples:
     cluster_dict.setdefault(key, []).append(value)
 
-#print(cluster_dict.keys())
+if args.savesum == True:
+    group_sum = open("group_summary.txt", "w")
+    group_sum.write(f"Group summary for query \"{args.protein}\" in \"{args.grouping}\"\n\n")
+
+group_options = {}
+print("Realigning groups...")
 #Processing the resultant groups to present to the user
 for key in cluster_dict.keys():
+# Setting many variables...
     index_list = cluster_dict[key]
-#    print("GROUP " + key + ":")
     fasta_string_group = ""
+    genus_string_list = []
+    name_string_list = []
+    median_seq_len_list = []
     group_df = seq_data.iloc[index_list]
+    group_options[key] = f"Group {key}"
+
 #    Concatenating accession numbers and sequences into a fasta formatted string variable
-    for accession, sequence in zip(group_df.Accession, group_df.Sequence):
-#        fasta_string_group = fasta_string_group + ">" + accession + " GROUP " + key + "\n" + sequence + "\n"
+    for accession, sequence, genus, full_name in zip(group_df.Accession, group_df.Sequence, group_df.Genus, group_df.Full_Name):
+
         fasta_string_group = fasta_string_group + ">" + accession + "\n" + sequence + "\n"
+        genus_string_list.append(genus)
+        name_string_list.append(full_name)
+        median_seq_len_list.append(len(sequence))
+
     with open(f"group_{key}_msa.fa", "w") as groupalign:
         groupalign.write(fasta_string_group)
-    print(f"Re-aligning group {key}...")
+
     subprocess.run(f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
 # Calling the conserved sequence generator emboss program, shutting up its annoying "error" messages by sending them to /dev/null... Why does it send the message "Create a consensus sequence from a multiple alignment" to stderr???? Surely it should be to stdout?
     subprocess.call(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", stderr=subprocess.DEVNULL, shell=True)
+
+    print(f"GROUP {key} SUMMARY:\n")
+    with open (f"group_{key}_cons.txt", "r") as groupcons:
+        cons_seq = '\n'.join(groupcons.read().split('\n')[1:])
+    print("\nMOST COMMON GENUSES:\n")
+    for genus, count in Counter(genus_string_list).most_common(10):
+        print(genus + ": " + str(count))
+    print("\nMOST COMMON SPECIES:\n")
+    for name, count in Counter(name_string_list).most_common(10):
+        print(name + ": " + str(count))
+    print("\nMEDIAN SEQUENCE LENGTH:\n")
+    print(statistics.median(median_seq_len_list))
+    print(f"\nGROUP {key} CONSERVED SEQUENCE:\n")
+    print(cons_seq)
+    print('\n\n ------------------------------------------- \n\n')
+    if args.savesum == True:
+        group_sum.write(f"GROUP {key} SUMMARY:\n")
+        group_sum.write("\nMOST COMMON GENUSES:\n")
+        for genus, count in Counter(genus_string_list).most_common(10):
+            group_sum.write(genus + ": " + str(count) + '\n')
+        group_sum.write("\nMOST COMMON SPECIES:\n")
+        for name, count in Counter(name_string_list).most_common(10):
+            group_sum.write(name + ": " + str(count) + '\n')
+        group_sum.write("\n\nMEDIAN SEQUENCE LENGTH:\n")
+        group_sum.write(str(statistics.median(median_seq_len_list)) + '\n')
+        group_sum.write(f"\n\nGROUP {key} CONSERVED SEQUENCE:\n")
+        group_sum.write('\n' + cons_seq)
+        group_sum.write('\n\n ------------------------------------------- \n\n')
+
+if args.savesum == True:
+    group_sum.close()
+
 #    subprocess.run(f"cons {fasta_string_group}"
 
 #def groupDisplay(consensus_list)
-
-
-consensus_list = []
-group_options = {}
-for key in cluster_dict.keys():
-    group_options[key] = f"Group {key}"
-    consensus_list.append(open(f"group_{key}_cons.txt", "r").read())
-
-groupSummary(consensus_list)
 
 user_selection = groupChoose(group_options)
 
