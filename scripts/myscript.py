@@ -248,22 +248,7 @@ clusterfile =  list(filter(None, clusterfile))
 
 #print(clusterfile)
 
-# Initialising some variables...
-print("Building groupings...")
-key_value_tuples = []
-cluster_dict = {}
-for file in clusterfile:
-#    Extracting the bits I want using regex
-    key = re.search(r'(?<=Cluster)(.*)(?=\:)', file).group(1).strip()
-    value = re.search(r'(?<=index)(.*)(?=\()', file).group(1).strip()
-    key_value_tuples.append((key, value))
-
-# Creating a dictionary of index lists
-for key, value in key_value_tuples:
-    cluster_dict.setdefault(key, []).append(value)
-
-if len(cluster_dict.keys()) == 1:
-    print("Skip to final stage <to be coded>")
+cluster_dict = clusterIndexer(clusterfile)
 
 if args.savesum == True:
     group_sum = open("group_summary.txt", "w")
