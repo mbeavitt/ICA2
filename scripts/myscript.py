@@ -14,6 +14,126 @@ import statistics
 from collections import Counter
 
 #####################################################################################
+# A function to write out the group summary information to a file, then             #
+# return the contents of the file. The information is:                              #
+#    - Most common genuses                                                          #
+#    - most common species                                                          #
+#    - median sequence length                                                       #
+#    - conserved sequence of group                                                  #
+#####################################################################################
+
+def groupDisplay(seq_data, cons_output):
+    groupset = list(set(seq_data['Group_ID']))
+    groupset.sort()
+    group_options = groupset
+    cons_list = []
+    for consensus_seq in cons_output:
+        cons_list.append(consensus_seq)
+    with open("group_summary.txt", "w") as group_summary:
+        group_summary.write("\nSUMMARY OF GROUPS:\n\n")
+        for group in groupset:
+            group_summary.write(f"\n\nGROUP {group} SUMMARY:\n")
+            group_summary.write("\n MOST COMMON GENUSES: \n")
+            group_genus = seq_data.loc[seq_data['Group_ID'] == group]['Genus']
+            group_name = seq_data.loc[seq_data['Group_ID'] == group]['Full_Name']
+            group_len = seq_data.loc[seq_data['Group_ID'] == group]['Sequence'].tolist()
+
+            for genus, count in Counter(group_genus).most_common(10):
+                group_summary.write(genus + ": " + str(count) + '\n')
+
+            group_summary.write("\n MOST COMMON SPECIES: \n")
+            for name, count in Counter(group_name).most_common(10):
+                group_summary.write(name + ": " + str(count) + '\n')
+
+            group_summary.write("\n MEDIAN SEQUENCE LENGTH: \n")
+            temp_lens = []
+
+            for sequence in group_len:
+                temp_lens.append(len(sequence))
+            group_summary.write(str(statistics.median(temp_lens)))
+            group_summary.write('\n')
+            group_summary.write("\n GROUP CONSERVED SEQUENCE: \n")
+            group_cons = cons_list[int(group)].decode("utf-8")
+            group_summary.write('\n'.join(group_cons.split('\n')[1:]))
+            group_summary.write('\n\n\n-------------------------------------------------------')
+
+    cons_summary = open("group_summary.txt", "r").read()
+
+    return cons_summary, group_options
+
+#####################################################################################
+# A basic function for creating groupwise MSAs and then getting a consensus sequence#
+# for them. I guess I don't really need a function for this, but it feels 'tidy'    #
+# the cons program was a bit annoying to work with. Its intro messages were being   #
+# routed to stderr and needed to be silenced, and you couldn't have a regular       #
+# stdout if no out file was passed, necessitating writing of yet another file       #
+#####################################################################################
+
+
+def groupwiseMSA(group_filenames):
+    print("Generating secondary alignments")
+    cons_output = []
+    for file in group_filenames:
+        subprocess.check_output(f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i {file}.fa -o {file}.msf", shell=True)
+        outfile = subprocess.check_output(f"cons -sequence {file}.msf -outseq /dev/stdout", stderr=subprocess.DEVNULL, shell=True)
+        cons_output.append(outfile)
+    return cons_output
+
+
+
+#####################################################################################
+# A function to wrangle gpc file format into a dataframe. The method for getting    #
+# the protein name may seem redundant, but it's because I want to leave space       #
+# for adding the option to potentially select multiple related proteins in future   #
+#####################################################################################
+
+def gpcWrangle(sequence_data):
+    print('Wrangling data...')
+    seq_data_list = sequence_data.split('\n')
+    seq_data_list = list(filter(None, seq_data_list))
+
+    list_of_rows=[]
+    # Slightly roundabout way of getting values to populate my dataframe...
+    for entry in seq_data_list:
+        fields = entry.split('\t')
+        accession_code = fields[0]
+        protein_name = args.grouping
+        full_name = fields[1]
+        genus = full_name.split()[0]
+        sequence = fields[2]
+    # Creating a list of 'dataframe rows'
+        list_of_rows.append([accession_code, protein_name, genus, full_name, sequence])
+
+    #print(list_of_rows)
+    # Creating the dataframe, with relevant column names...
+    seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Full_Name', 'Sequence'])
+
+    return seq_data
+
+
+#####################################################################################
+# A function to write out fasta formatted sequences of each group in the query      #
+# and return a list of the group file names.                                        #
+#####################################################################################
+
+def groupFasta(cluster_dict):
+    print('Generating groupwise fasta files...')
+    group_filenames = []
+    for key in cluster_dict.keys():
+        index_list = cluster_dict[key]
+        for index in index_list:
+            seq_data.loc[int(index), 'Group_ID'] = key
+        group_fasta = ""
+        group_data = seq_data.loc[seq_data['Group_ID'] == key]
+        for accession, sequence in zip(group_data.Accession, group_data.Sequence):
+            group_fasta = group_fasta + ">" + accession + "\n" + sequence + "\n"
+            with open(f"group_{key}.fa", "w") as groupalign:
+                groupalign.write(group_fasta)
+        group_filenames.append(f"group_{key}")
+    return group_filenames
+
+
+#####################################################################################
 # A function for creating a dictionary where each key corresponds to a multiple     #
 # alignment cluster, and each "value" is a list of index positions in a             #
 # dataframe that can be used to source data about the members of the cluster        #
@@ -32,11 +152,16 @@ def clusterIndexer(clusterfile):
     # Creating a dictionary of index lists
     for key, value in key_value_tuples:
         cluster_dict.setdefault(key, []).append(value)
-
+    # Checking that there are no 'groups' of 1. If there are, they are removed.
+    if len(cluster_dict[key]) == 1:
+        cluster_dict.pop(key, None)
     if len(cluster_dict.keys()) == 1:
         print("Skip to final stage <to be coded>")
-
+    if len(cluster_dict.keys()) == 0:
+        print("Something has gone terribly wrong. Try expanding your search...?")
+        sys.exit()
     return cluster_dict
+
 
 #####################################################################################
 # A function for choosing groups formed by clustal omega. The idea is that this     #
@@ -91,77 +216,8 @@ def groupChoose(group_options):
 
     return selected
 
-#####################################################################################
-# A function for displaying a summary of the groups generated by clustal,           #
-# and returning a list of group options. Groups can be displayed one at a time      #
-# or all at once. The summary contains:                                             #
-#  - group consensus sequence                                                       #
-#  - top 10 most common species                                                     #
-#  - top 10 most common genera                                                      #
-#  - median sequence length                                                         #
-#####################################################################################
 
-def groupSummary(cluster_dict):
-
-    group_options = {}
-    print("Realigning groups...")
-    #Processing the resultant groups to present to the user
-    for key in cluster_dict.keys():
-    # Setting many variables...
-        index_list = cluster_dict[key]
-        fasta_string_group = ""
-        genus_string_list = []
-        name_string_list = []
-        median_seq_len_list = []
-        group_df = seq_data.iloc[index_list]
-        group_options[key] = f"Group {key}"
-
-    #    Concatenating accession numbers and sequences into a fasta formatted string variable
-        for accession, sequence, genus, full_name in zip(group_df.Accession, group_df.Sequence, group_df.Genus, group_df.Full_Name):
-
-            fasta_string_group = fasta_string_group + ">" + accession + "\n" + sequence + "\n"
-            genus_string_list.append(genus)
-            name_string_list.append(full_name)
-            median_seq_len_list.append(len(sequence))
-
-        with open(f"group_{key}_msa.fa", "w") as groupalign:
-            groupalign.write(fasta_string_group)
-
-        subprocess.check_output(f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i group_{key}_msa.fa -o group_{key}_msa.msf", shell=True)
-    # Calling the conserved sequence generator emboss program, shutting up its annoying "error" messages by sending them to /dev/null... Why does it send the message "Create a consensus sequence from a multiple alignment" to stderr???? Surely it should be to stdout?
-        subprocess.call(f"cons -sequence group_{key}_msa.msf -outseq group_{key}_cons.txt", stderr=subprocess.DEVNULL, shell=True)
-
-        print(f"GROUP {key} SUMMARY:\n")
-        print("n = " + str(len(name_string_list)))
-        with open (f"group_{key}_cons.txt", "r") as groupcons:
-            cons_seq = '\n'.join(groupcons.read().split('\n')[1:])
-        print("\nMOST COMMON GENUSES:\n")
-        for genus, count in Counter(genus_string_list).most_common(10):
-            print(genus + ": " + str(count))
-        print("\nMOST COMMON SPECIES:\n")
-        for name, count in Counter(name_string_list).most_common(10):
-            print(name + ": " + str(count))
-        print("\nMEDIAN SEQUENCE LENGTH:\n")
-        print(statistics.median(median_seq_len_list))
-        print(f"\nGROUP {key} CONSERVED SEQUENCE:\n")
-        print(cons_seq)
-        print('\n\n ------------------------------------------- \n\n')
-        if args.savesum == True:
-            group_sum.write(f"GROUP {key} SUMMARY:\n")
-            group_sum.write("\nn = " + str(len(name_string_list) + '\n'))
-            group_sum.write("\nMOST COMMON GENUSES:\n")
-            for genus, count in Counter(genus_string_list).most_common(10):
-                group_sum.write(genus + ": " + str(count) + '\n')
-            group_sum.write("\nMOST COMMON SPECIES:\n")
-            for name, count in Counter(name_string_list).most_common(10):
-                group_sum.write(name + ": " + str(count) + '\n')
-            group_sum.write("\n\nMEDIAN SEQUENCE LENGTH:\n")
-            group_sum.write(str(statistics.median(median_seq_len_list)) + '\n')
-            group_sum.write(f"\n\nGROUP {key} CONSERVED SEQUENCE:\n")
-            group_sum.write('\n' + cons_seq)
-            group_sum.write('\n\n ------------------------------------------- \n\n')
-
-    return group_options
+#### INITIALIZING AN ARGUMENT PARSER AND POPULATING IT ####
 
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
 args_parser = argparse.ArgumentParser(
@@ -183,10 +239,11 @@ args_parser.add_argument('--force', dest='force', action='store_true', help = "U
 # assigning parsed args to variable
 args = args_parser.parse_args()
 
-# Creating empty dataframe to hold sequence info
-seq_data = pd.DataFrame(columns = ['Accession', 'Protein name', 'Genus', 'Full_Name', 'Sequence'])
 
-# Fetching sequences the easy (boring) way
+#### MAIN CODE ####
+
+
+# Fetching sequence query info
 search_query = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | xtract -pattern ENTREZ_DIRECT -element Count", shell=True).decode('utf-8').strip()
 if search_query == 0:
     print("No sequeces found for these search terms. Please try again, or broaden your search parameters")
@@ -205,64 +262,31 @@ else:
 # Fetch sequence data using gpc format
 print("Fetching sequences...")
 sequence_data = subprocess.check_output(f"esearch -db \"{args.database}\" -query \"{args.protein}[Protein Name] AND {args.grouping}[Organism] NOT partial[Properties]\" | efetch -format gpc | xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism INSDSeq_sequence", shell = True).decode('utf-8')
-print("Building dataframe...")
-seq_data_list = sequence_data.split('\n')
-#print("got sequences!")
-# Filtering pesky empty list strings
-seq_data_list = list(filter(None, seq_data_list))
 
-list_of_rows=[]
-# Slightly roundabout way of getting values to populate my dataframe...
-for entry in seq_data_list:
-    fields = entry.split('\t')
-    accession_code = fields[0]
-# Slightly workaround-y way of specifying the protein name... I couldn't actually figure out how to parse it from either the fasta or gpc files accurately,
-# and I don't want to slow down the program by downloading more than one filetype from NCBI.
-# It may seem unnecessary to even define one (We're only passing one protein argument after all!!)
-# BUT, I would like to keep open the possibility of passing multiple proteins for cross-comparison, so in that regard this is a placeholder.
-    protein_name = args.grouping
-    full_name = fields[1]
-    genus = full_name.split()[0]
-    sequence = fields[2]
-# Creating a list of 'dataframe rows'
-    list_of_rows.append([accession_code, protein_name, genus, full_name, sequence])
+seq_data = gpcWrangle(sequence_data)
 
-#print(list_of_rows)
-# Creating the dataframe, with relevant column names...
-seq_data = pd.DataFrame(list_of_rows, columns = ['Accession', 'Protein name', 'Genus', 'Full_Name', 'Sequence'])
 fasta_string = ""
 for accession, sequence in zip(seq_data.Accession, seq_data.Sequence):
     fasta_string = fasta_string + ">" + accession + "\n" + sequence + "\n"
 
+# Writing fasta file for primary MSA
 with open(f"fasta_formatted.fa", "w") as fasta_formatted_file:
     fasta_formatted_file.write(fasta_string)
 
-#print(seq_data)
-#print(seq_data['Genus'].unique())
 
+# Running the primary MSA
 print("Running primary MSA...")
-# modified from python docs examples. Might be a more robust way of doing it?
 subprocess.run(f"clustalo --force --auto  --threads={args.threads} --clustering-out=clusterfile.txt --outfmt=msf -i fasta_formatted.fa -o align.msf", shell=True)
 clusterfile = open("clusterfile.txt", "r").read().split('\n')
 clusterfile =  list(filter(None, clusterfile))
 
-#print(clusterfile)
 
+# Input > Process > Output... Repeat!
 cluster_dict = clusterIndexer(clusterfile)
-
-if args.savesum == True:
-    group_sum = open("group_summary.txt", "w")
-    group_sum.write(f"Group summary for query \"{args.protein}\" in \"{args.grouping}\"\n\n")
-
-group_options = groupSummary(cluster_dict)
-
-if args.savesum == True:
-    group_sum.close()
-
-#    subprocess.run(f"cons {fasta_string_group}"
-
-#def groupDisplay(consensus_list)
-
+group_filenames = groupFasta(cluster_dict)
+cons_output = groupwiseMSA(group_filenames)
+cons_summary, group_options = groupDisplay(seq_data, cons_output)
+print(cons_summary)
 user_selection = groupChoose(group_options)
 
 #print(key_value_tuples)
