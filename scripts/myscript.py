@@ -298,13 +298,38 @@ args_parser.add_argument(
     "--force",
     dest="force",
     action="store_true",
-    help="Use --force to overwrite files. Default is false.",
+    help="Use --force to overwrite files. Default is false."
+)
+args_parser.add_argument(
+    "--no-grouping",
+    dest="nogrouping",
+    action="store_true",
+    help=(
+        "if --no-grouping is passed as an argument, only the first sequence alignment"
+        "will be performed."
 )
 
 # assigning parsed args to variable
 args = args_parser.parse_args()
 
+#### CHECKING THAT EDIRECT IS INSTALLED ####
+
+# maybe a bit of a roundabout way of doing it...
+# I thought about running the user through an installation, but I could not reliably
+# get the damn program to install. Sometimes it would just say "Unable to download EDirect archive",
+# and you just had to try again later, and other times it would "complete" the process, but nothing
+# would have been installed...! Additionally, I think it's good practice not to have a program
+# install things by itself, in case perhaps the EDirect URL is changed, or the user's system
+# is not the same as your own. Perhaps they would like to install it in an application folder,
+# not their homespace or the current directory.
+
+try:
+        subprocess.Popen("efetch", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+except FileNotFoundError:
+        print("You must install EDirect before continuing - see https://www.ncbi.nlm.nih.gov/books/NBK179288/")
+
 #### MAIN CODE ####
+
 
 # Fetching sequence query info
 search_query = (
@@ -332,7 +357,10 @@ print(
     + "\n Would you like to continue...? Please note sequence entries >1000 may take a"
     " while to process."
 )
+
+# A quick few lines to avoid accidental processing of huge volumes of data...
 continue_ornot = None
+
 while continue_ornot not in {"y", "n"}:
     continue_ornot = input("Please enter y/n:")
 
@@ -342,7 +370,12 @@ if continue_ornot == "y":
 else:
     sys.exit()
 
-# Fetch sequence data using gpc format
+
+# Fetching sequence data using gpc format. Fasta was used previously, but unfortunately
+# I had a couple nasty accidents with regex gone wrong, so defaulted to xml style files
+# using xtract for robustness. The annoying consequence of this is much higher waiting
+# times for sequences to download...
+
 print("Fetching sequences...")
 sequence_data = subprocess.check_output(
     (
