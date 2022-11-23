@@ -191,7 +191,7 @@ def clusterIndexer(clusterfile):
 def groupChoose(group_options):
     possible_choices = []
     print(
-        'Please pick a group number, e.g. for "Group 1" enter "1". To finish, enter'
+        'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish, enter'
         ' "f":'
     )
     for option in group_options:
@@ -222,7 +222,7 @@ def groupChoose(group_options):
         if user_input == "a":
             selected = possible_choices
             print("\nGroups in selection:")
-            print(set(selected))
+            print(list(set(selected)).sort())
             continue
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
@@ -232,9 +232,9 @@ def groupChoose(group_options):
         if input_number > -1 and input_number < len(possible_choices):
             selected.append(possible_choices[input_number])
             print("\nGroups in selection:")
-            print(set(selected))
+            print(list(set(selected).sort())
         else:
-            print("Please choose a valid group number")
+            print("Please choose a valid group number or an option")
 
     return selected
 
@@ -292,15 +292,6 @@ args_parser.add_argument(
         "--threads takes an integer, and is used to determine how many threads to use"
         " in all processes that allow thread number choices (currently just clustalo)."
         " Default is 50."
-    ),
-)
-args_parser.add_argument(
-    "--save-group-summary",
-    dest="savesum",
-    action="store_true",
-    help=(
-        "--save-group-summary will save the group summary page in this program's output"
-        " to a .txt file called group_summary.txt."
     ),
 )
 args_parser.add_argument(
