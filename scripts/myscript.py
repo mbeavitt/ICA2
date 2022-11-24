@@ -26,12 +26,12 @@ def checkDirs(dirs_list):
             else:
                 rmtree(dir)
                 os.mkdir(dir)
-            return
+        return
 
     continue_pipeline = True
     for dir in dirs_list:
         if os.path.exists(dir):
-            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\n Alternatively, would you like to overwrite your files...? \n")
+            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\n Alternatively, would you like to overwrite your files...?")
             continue_pipeline = False
             break
 
@@ -71,7 +71,7 @@ def groupDisplay(seq_data, cons_output):
     cons_list = []
     for consensus_seq in cons_output:
         cons_list.append(consensus_seq)
-    with open("group_summary.txt", "w") as group_summary:
+    with open(f"{summary_path}group_summary.txt", "w") as group_summary:
         group_summary.write("\nSUMMARY OF GROUPS:\n\n")
         for group in groupset:
             group_summary.write(f"\n\n\n\nGROUP {group} SUMMARY:\n")
@@ -101,7 +101,7 @@ def groupDisplay(seq_data, cons_output):
                 "\n\n\n-------------------------------------------------------"
             )
 
-    cons_summary = open("group_summary.txt", "r").read()
+    cons_summary = open(f"{summary_path}group_summary.txt", "r").read()
 
     return cons_summary, group_options
 
@@ -120,12 +120,13 @@ def groupwiseMSA(group_filenames):
         subprocess.check_output(
             (
                 f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
-                f" {file}.fa -o {file}.msf"
+                f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
             ),
             shell=True,
         )
         outfile = subprocess.check_output(
-            f"cons -sequence {file}.msf -outseq /dev/stdout",
+            #/dev/stdout used to route output to variable.
+            f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
             stderr=subprocess.DEVNULL,
             shell=True,
         )
@@ -181,7 +182,7 @@ def groupFasta(cluster_dict):
         group_data.dropna()
         for accession, sequence in zip(group_data.Accession, group_data.Sequence):
             group_fasta = group_fasta + ">" + accession + "\n" + sequence + "\n"
-            with open(f"group_{key}.fa", "w") as groupalign:
+            with open(f"{fasta_path}group_{key}.fa", "w") as groupalign:
                 groupalign.write(group_fasta)
         group_filenames.append(f"group_{key}")
     return group_filenames
@@ -232,6 +233,7 @@ def clusterIndexer(clusterfile):
 
 def groupChoose(group_options):
     possible_choices = []
+    print(group_options)
     print(
         'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish, enter'
         ' "f":'
@@ -264,7 +266,7 @@ def groupChoose(group_options):
         if user_input == "a":
             selected = possible_choices
             print("\nGroups in selection:")
-            print(list(set(selected)).sort())
+            print(set(selected))
             continue
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
@@ -274,7 +276,7 @@ def groupChoose(group_options):
         if input_number > -1 and input_number < len(possible_choices):
             selected.append(possible_choices[input_number])
             print("\nGroups in selection:")
-            print(list(set(selected).sort()))
+            print(set(selected))
         else:
             print("Please choose a valid group number or an option")
 
@@ -373,7 +375,11 @@ except FileNotFoundError:
 
 #### MAIN CODE ####
 
-checkDirs(["test1"])
+checkDirs(["Fasta_files", "MSA_files", "Summary_files"])
+fasta_path = "Fasta_files/"
+msa_path = "MSA_files/"
+summary_path = "Summary_files/"
+
 # Fetching sequence query info
 search_query = (
     subprocess.check_output(
@@ -449,7 +455,7 @@ for accession, sequence in zip(seq_data.Accession, seq_data.Sequence):
     fasta_string = fasta_string + ">" + accession + "\n" + sequence + "\n"
 
 # Writing fasta file for primary MSA
-with open(f"fasta_formatted.fa", "w") as fasta_formatted_file:
+with open(f"{fasta_path}fasta_formatted.fa", "w") as fasta_formatted_file:
     fasta_formatted_file.write(fasta_string)
 
 # Running the primary MSA
@@ -457,12 +463,12 @@ print("Running primary MSA...")
 subprocess.run(
     (
         "clustalo --force --auto "
-        f" --threads={args.threads} --clustering-out=clusterfile.txt --outfmt=msf -i"
-        " fasta_formatted.fa -o align.msf"
+        f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
+        f" {fasta_path}fasta_formatted.fa -o align.msf"
     ),
     shell=True,
 )
-clusterfile = open("clusterfile.txt", "r").read().split("\n")
+clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
 clusterfile = list(filter(None, clusterfile))
 
 # Input > Process > Output... Repeat!
