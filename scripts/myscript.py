@@ -416,7 +416,7 @@ while continue_ornot not in {"y", "n"}:
     continue_ornot = input("Please enter y/n:")
 
 if continue_ornot == "y":
-    print("Processing...")
+    print("\nProcessing...")
 
 else:
     sys.exit()
@@ -472,6 +472,8 @@ clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
 clusterfile = list(filter(None, clusterfile))
 
 # Input > Process > Output... Repeat!
+if args.nogrouping:
+    print("no grouping")
 cluster_dict = clusterIndexer(clusterfile)
 group_filenames = groupFasta(cluster_dict)
 cons_output = groupwiseMSA(group_filenames)
@@ -479,3 +481,4 @@ seq_data = seq_data.dropna()
 cons_summary, group_options = groupDisplay(seq_data, cons_output)
 print(cons_summary)
 user_selection = groupChoose(group_options)
+print(user_selection)
