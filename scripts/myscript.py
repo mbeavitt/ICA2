@@ -10,6 +10,7 @@ import pandas as pd
 import os
 import statistics
 from collections import Counter
+from shutil import rmtree
 
 #####################################################################################
 # An interactive prompt that guides the user through removing files from previous   #
@@ -34,12 +35,12 @@ def checkDirs(dirs_list):
             continue_ornot = input("Overwrite?  y/n:")
 
         if continue_ornot == "y":
-            print("Overwriting...")
+            print("Files will be overwritten.")
             for dir in dirs_list:
                 if not os.path.exists(dir):
                     os.mkdir(dir)
                 else:
-                    shutil.rmtree(dir)
+                    rmtree(dir)
                     os.mkdir(dir)
         else:
             sys.exit()
@@ -363,7 +364,7 @@ except FileNotFoundError:
 
 #### MAIN CODE ####
 
-
+checkDirs(["test1"])
 # Fetching sequence query info
 search_query = (
     subprocess.check_output(
