@@ -1,5 +1,7 @@
 #!/bin/python3
-# myscript.py written on 16/11/2022 by B214618. Currently this is simply a base script to build the main script on.
+# myscript.py written on 16/11/2022 by B214618.
+
+#### ---- IMPORTING MODULES ---- ####
 
 import configparser
 import argparse
@@ -12,11 +14,16 @@ import statistics
 from collections import Counter
 from shutil import rmtree
 
+
+#### ---- FUNCTIONS ---- ####
+
 #####################################################################################
 # An interactive prompt that guides the user through removing files from previous   #
-# analysis sessions                                                                 #
+# analysis sessions. I did think about implementing a method for the user to create #
+# new folders with unique names, but that could quickly become messy, and it's not  #
+# something I've seen other command line programs do before. --force tends to be    #
+# more common in my limited experience.                                             #
 #####################################################################################
-
 
 def checkDirs(dirs_list):
     if args.force == True:
@@ -56,84 +63,6 @@ def checkDirs(dirs_list):
 
 
 #####################################################################################
-# A function to write out the group summary information to a file, then             #
-# return the contents of the file. The information is:                              #
-#    - Most common genuses                                                          #
-#    - most common species                                                          #
-#    - median sequence length                                                       #
-#    - conserved sequence of group                                                  #
-#####################################################################################
-
-def groupDisplay(seq_data, cons_output):
-    groupset = list(set(seq_data["Group_ID"]))
-    groupset.sort(key=int)
-    group_options = groupset
-    cons_list = []
-    for consensus_seq in cons_output:
-        cons_list.append(consensus_seq)
-    with open(f"{summary_path}group_summary.txt", "w") as group_summary:
-        group_summary.write("\nSUMMARY OF GROUPS:\n\n")
-        for group in groupset:
-            group_summary.write(f"\n\n\n\nGROUP {group} SUMMARY:\n")
-            group_summary.write("\n MOST COMMON GENUSES: \n")
-            group_genus = seq_data.loc[seq_data["Group_ID"] == group]["Genus"]
-            group_name = seq_data.loc[seq_data["Group_ID"] == group]["Full_Name"]
-            group_len = seq_data.loc[seq_data["Group_ID"] == group]["Sequence"].tolist()
-
-            for genus, count in Counter(group_genus).most_common(10):
-                group_summary.write(genus + ": " + str(count) + "\n")
-
-            group_summary.write("\n MOST COMMON SPECIES: \n")
-            for name, count in Counter(group_name).most_common(10):
-                group_summary.write(name + ": " + str(count) + "\n")
-
-            group_summary.write("\n MEDIAN SEQUENCE LENGTH: \n")
-            temp_lens = []
-
-            for sequence in group_len:
-                temp_lens.append(len(sequence))
-            group_summary.write(str(statistics.median(temp_lens)))
-            group_summary.write("\n")
-            group_summary.write("\n GROUP CONSERVED SEQUENCE: \n")
-            group_cons = cons_list[int(group)].decode("utf-8")
-            group_summary.write("\n".join(group_cons.split("\n")[1:]))
-            group_summary.write(
-                "\n\n\n-------------------------------------------------------"
-            )
-
-    cons_summary = open(f"{summary_path}group_summary.txt", "r").read()
-
-    return cons_summary, group_options
-
-#####################################################################################
-# A basic function for creating groupwise MSAs and then getting a consensus sequence#
-# for them. I guess I don't really need a function for this, but it feels 'tidy'    #
-# the cons program was a bit annoying to work with. Its intro messages were being   #
-# routed to stderr and needed to be silenced, and you couldn't have a regular       #
-# stdout if no out file was passed, necessitating writing of yet another file       #
-#####################################################################################
-
-def groupwiseMSA(group_filenames):
-    print("Generating secondary alignments...")
-    cons_output = []
-    for file in group_filenames:
-        subprocess.check_output(
-            (
-                f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
-                f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
-            ),
-            shell=True,
-        )
-        outfile = subprocess.check_output(
-            #/dev/stdout used to route output to variable.
-            f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
-            stderr=subprocess.DEVNULL,
-            shell=True,
-        )
-        cons_output.append(outfile)
-    return cons_output
-
-#####################################################################################
 # A function to wrangle gpc file format into a dataframe. The method for getting    #
 # the protein name may seem redundant, but it's because I want to leave space       #
 # for adding the option to potentially select multiple related proteins in future   #
@@ -165,27 +94,6 @@ def gpcWrangle(sequence_data):
 
     return seq_data
 
-#####################################################################################
-# A function to write out fasta formatted sequences of each group in the query      #
-# and return a list of the group file names.                                        #
-#####################################################################################
-
-def groupFasta(cluster_dict):
-    print("Generating groupwise fasta files...")
-    group_filenames = []
-    for key in cluster_dict.keys():
-        index_list = cluster_dict[key]
-        for index in index_list:
-            seq_data.loc[int(index), "Group_ID"] = key
-        group_fasta = ""
-        group_data = seq_data.loc[seq_data["Group_ID"] == key]
-        group_data.dropna()
-        for accession, sequence in zip(group_data.Accession, group_data.Sequence):
-            group_fasta = group_fasta + ">" + accession + "\n" + sequence + "\n"
-            with open(f"{fasta_path}group_{key}.fa", "w") as groupalign:
-                groupalign.write(group_fasta)
-        group_filenames.append(f"group_{key}")
-    return group_filenames
 
 #####################################################################################
 # A function for creating a dictionary where each key corresponds to a multiple     #
@@ -222,6 +130,142 @@ def clusterIndexer(clusterfile):
         print("Something has gone terribly wrong. Try expanding your search...?")
         sys.exit()
     return cluster_dict
+
+
+#####################################################################################
+# A function to write out fasta formatted sequences of each group in the query      #
+# and return a list of the group file names.                                        #
+#####################################################################################
+
+def groupFasta(cluster_dict):
+    print("Generating groupwise fasta files...")
+    group_filenames = []
+    for key in cluster_dict.keys():
+        index_list = cluster_dict[key]
+        for index in index_list:
+            seq_data.loc[int(index), "Group_ID"] = key
+        group_fasta = ""
+        group_data = seq_data.loc[seq_data["Group_ID"] == key]
+        group_data.dropna()
+        for accession, sequence in zip(group_data.Accession, group_data.Sequence):
+            group_fasta = group_fasta + ">" + accession + "\n" + sequence + "\n"
+            with open(f"{fasta_path}group_{key}.fa", "w") as groupalign:
+                groupalign.write(group_fasta)
+        group_filenames.append(f"group_{key}")
+    return group_filenames
+
+
+#####################################################################################
+# A basic function for creating groupwise MSAs and then getting a consensus sequence#
+# for them. I guess I don't really need a function for this, but it feels 'tidy'    #
+# the cons program was a bit annoying to work with. Its intro messages were being   #
+# routed to stderr and needed to be silenced, and you couldn't have a regular       #
+# stdout if no out file was passed, necessitating writing of yet another file       #
+#####################################################################################
+
+def groupwiseMSA(group_filenames):
+    print("Generating secondary alignments...")
+    cons_output = []
+    for file in group_filenames:
+        subprocess.check_output(
+            (
+                f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
+                f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
+            ),
+            shell=True,
+        )
+        outfile = subprocess.check_output(
+            #/dev/stdout used to route output to variable.
+            f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
+            stderr=subprocess.DEVNULL,
+            shell=True,
+        )
+        cons_output.append(outfile)
+    return cons_output
+
+
+#####################################################################################
+# A function to write out the group summary information to a file, then             #
+# return the contents of the file. The information is:                              #
+#    - Most common genuses                                                          #
+#    - most common species                                                          #
+#    - median sequence length                                                       #
+#    - conserved sequence of group                                                  #
+#####################################################################################
+
+def groupDisplay(seq_data, cons_output):
+    if args.nogrouping:
+        pass
+    else:
+        groupset = list(set(seq_data["Group_ID"]))
+        groupset.sort(key=int)
+        group_options = groupset
+        cons_list = []
+
+    #Do I really need to do this??? Isn't it a list already...????
+        for consensus_seq in cons_output:
+            cons_list.append(consensus_seq)
+
+    if args.nogrouping:
+        with open(f"{summary_path}nogrouping_summary.txt", "w") as group_summary:
+            group_summary.write("\nSUMMARY OF SEARCH ANALYSIS (NO GROUPING):\n\n")
+            group_summary.write("\nMOST COMMON GENUSES: \n")
+            for genus, count in Counter(seq_data["Genus"]).most_common(10):
+                group_summary.write(genus + ": " + str(count) + "\n")
+
+            group_summary.write("\nMOST COMMON SPECIES: \n")
+            for name, count in Counter(seq_data["Full_Name"]).most_common(10):
+                group_summary.write(name + ": " + str(count) + "\n")
+
+            group_summary.write("\nMEDIAN SEQUENCE LENGTH: \n")
+            temp_lens = []
+            for sequence in seq_data["Sequence"].tolist():
+                temp_lens.append(len(sequence))
+            group_summary.write(str(statistics.median(temp_lens)))
+            group_summary.write("\n")
+            group_summary.write("\nCONSERVED SEQUENCE: \n")
+            group_cons = cons_output.decode("utf-8")
+            group_summary.write("\n".join(group_cons.split("\n")[1:]))
+
+        cons_summary = open(f"{summary_path}nogrouping_summary.txt", "r").read()
+
+        return cons_summary
+
+    else:
+        with open(f"{summary_path}group_summary.txt", "w") as group_summary:
+            group_summary.write("\nSUMMARY OF GROUPS:\n\n")
+            for group in groupset:
+                group_summary.write(f"\n\n\n\nGROUP {group} SUMMARY:\n")
+                group_summary.write("\nMOST COMMON GENUSES: \n")
+                group_genus = seq_data.loc[seq_data["Group_ID"] == group]["Genus"]
+                group_name = seq_data.loc[seq_data["Group_ID"] == group]["Full_Name"]
+                group_len = seq_data.loc[seq_data["Group_ID"] == group]["Sequence"].tolist()
+
+                for genus, count in Counter(group_genus).most_common(10):
+                    group_summary.write(genus + ": " + str(count) + "\n")
+
+                group_summary.write("\nMOST COMMON SPECIES: \n")
+                for name, count in Counter(group_name).most_common(10):
+                    group_summary.write(name + ": " + str(count) + "\n")
+
+                group_summary.write("\nMEDIAN SEQUENCE LENGTH: \n")
+                temp_lens = []
+
+                for sequence in group_len:
+                    temp_lens.append(len(sequence))
+                group_summary.write(str(statistics.median(temp_lens)))
+                group_summary.write("\n")
+                group_summary.write("\nGROUP CONSERVED SEQUENCE: \n")
+                group_cons = cons_list[int(group)].decode("utf-8")
+                group_summary.write("\n".join(group_cons.split("\n")[1:]))
+                group_summary.write(
+                    "\n\n\n-------------------------------------------------------"
+                )
+
+        cons_summary = open(f"{summary_path}group_summary.txt", "r").read()
+
+        return cons_summary, group_options
+
 
 #####################################################################################
 # A function for choosing groups formed by clustal omega. The idea is that this     #
@@ -281,6 +325,7 @@ def groupChoose(group_options):
             print("Please choose a valid group number or an option")
 
     return selected
+
 
 #### INITIALIZING AN ARGUMENT PARSER AND POPULATING IT ####
 
@@ -416,7 +461,7 @@ while continue_ornot not in {"y", "n"}:
     continue_ornot = input("Please enter y/n:")
 
 if continue_ornot == "y":
-    print("\nProcessing...")
+    pass
 
 else:
     sys.exit()
@@ -460,25 +505,53 @@ with open(f"{fasta_path}fasta_formatted.fa", "w") as fasta_formatted_file:
 
 # Running the primary MSA
 print("Running primary MSA...")
-subprocess.run(
-    (
-        "clustalo --force --auto "
-        f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
-        f" {fasta_path}fasta_formatted.fa -o align.msf"
-    ),
-    shell=True,
-)
-clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
-clusterfile = list(filter(None, clusterfile))
+
+if args.nogrouping:
+    subprocess.run(
+        (
+            "clustalo --force --auto "
+            f" --threads={args.threads} --outfmt=msf -i"
+            f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+        ),
+        shell=True,
+    )
+
+else:
+    subprocess.run(
+        (
+            "clustalo --force --auto "
+            f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
+            f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+        ),
+        shell=True,
+    )
+    clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
+    clusterfile = list(filter(None, clusterfile))
 
 # Input > Process > Output... Repeat!
 if args.nogrouping:
-    print("no grouping")
-cluster_dict = clusterIndexer(clusterfile)
-group_filenames = groupFasta(cluster_dict)
-cons_output = groupwiseMSA(group_filenames)
-seq_data = seq_data.dropna()
-cons_summary, group_options = groupDisplay(seq_data, cons_output)
-print(cons_summary)
-user_selection = groupChoose(group_options)
-print(user_selection)
+    #Basically doing the same as in groupwiseMSA, but for only one group. Still using list (of one) bc
+    #it makes it easier to reuse the groupDisplay function
+    cons_output = subprocess.check_output(
+        #/dev/stdout used to route output to variable.
+        f"cons -sequence {msa_path}primary_align.msf -outseq /dev/stdout",
+        stderr=subprocess.DEVNULL,
+        shell=True,
+    )
+    cons_summary = groupDisplay(seq_data, cons_output)
+    print(cons_summary)
+
+else:
+    cluster_dict = clusterIndexer(clusterfile)
+    group_filenames = groupFasta(cluster_dict)
+    cons_output = groupwiseMSA(group_filenames)
+
+    # Not entirely sure I actually need to run this command, will test at a later date. Program works fine with it though.
+    # The idea was to remove single groups which would then be represented as na in the dataframe, but I might have
+    # Made that all work within the groupFasta function already.
+    seq_data = seq_data.dropna()
+
+    cons_summary, group_options = groupDisplay(seq_data, cons_output)
+    print(cons_summary)
+    user_selection = groupChoose(group_options)
+    print(user_selection)
