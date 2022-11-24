@@ -7,10 +7,43 @@ import sys
 import subprocess
 import re
 import pandas as pd
-import pprint
 import os
 import statistics
 from collections import Counter
+
+#####################################################################################
+# An interactive prompt that guides the user through removing files from previous   #
+# analysis sessions                                                                 #
+#####################################################################################
+
+
+def checkDirs(dirs_list):
+    continue_pipeline = True
+    for dir in dirs_list:
+        if os.path.exists(dir):
+            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\n Alternatively, would you like to overwrite your files...? \n")
+            continue_pipeline = False
+            break
+
+    if continue_pipeline == True:
+        for dir in dirs_list:
+            os.mkdir(dir)
+    else:
+        continue_ornot = None
+        while continue_ornot not in {"y", "n"}:
+            continue_ornot = input("Overwrite?  y/n:")
+
+        if continue_ornot == "y":
+            print("Overwriting...")
+            for dir in dirs_list:
+                if not os.path.exists(dir):
+                    os.mkdir(dir)
+                else:
+                    shutil.rmtree(dir)
+                    os.mkdir(dir)
+        else:
+            sys.exit()
+
 
 #####################################################################################
 # A function to write out the group summary information to a file, then             #
@@ -24,7 +57,6 @@ from collections import Counter
 def groupDisplay(seq_data, cons_output):
     groupset = list(set(seq_data["Group_ID"]))
     groupset.sort(key=int)
-    print(groupset)
     group_options = groupset
     cons_list = []
     for consensus_seq in cons_output:
@@ -232,7 +264,7 @@ def groupChoose(group_options):
         if input_number > -1 and input_number < len(possible_choices):
             selected.append(possible_choices[input_number])
             print("\nGroups in selection:")
-            print(list(set(selected).sort())
+            print(list(set(selected).sort()))
         else:
             print("Please choose a valid group number or an option")
 
@@ -307,6 +339,7 @@ args_parser.add_argument(
     help=(
         "if --no-grouping is passed as an argument, only the first sequence alignment"
         "will be performed."
+    ),
 )
 
 # assigning parsed args to variable
@@ -344,6 +377,9 @@ search_query = (
     .decode("utf-8")
     .strip()
 )
+if search_query == None:
+    print("Something has gone wrong retrieving your search from NCBI. You might have to try again later, or check your network.")
+
 if search_query == 0:
     print(
         "No sequeces found for these search terms. Please try again, or broaden your"
@@ -360,13 +396,12 @@ print(
 
 # A quick few lines to avoid accidental processing of huge volumes of data...
 continue_ornot = None
-
 while continue_ornot not in {"y", "n"}:
     continue_ornot = input("Please enter y/n:")
 
 if continue_ornot == "y":
     print("Processing...")
-    pass
+
 else:
     sys.exit()
 
