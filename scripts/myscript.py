@@ -19,6 +19,15 @@ from shutil import rmtree
 
 
 def checkDirs(dirs_list):
+    if args.force == True:
+        for dir in dirs_list:
+            if not os.path.exists(dir):
+                os.mkdir(dir)
+            else:
+                rmtree(dir)
+                os.mkdir(dir)
+            return
+
     continue_pipeline = True
     for dir in dirs_list:
         if os.path.exists(dir):
