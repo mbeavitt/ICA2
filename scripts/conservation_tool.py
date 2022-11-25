@@ -427,12 +427,6 @@ args_parser.add_argument(
     help='use --group to define group query (e.g. "Ascomycota" or "txid4890")',
 )
 args_parser.add_argument(
-    "--database",
-    dest="database",
-    default="protein",
-    help='NCBI database to query (e.g. "protein")',
-)
-args_parser.add_argument(
     "--winsize",
     dest="winsize",
     default=10,
