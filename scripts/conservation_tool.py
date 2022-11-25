@@ -421,6 +421,12 @@ args_parser.add_argument(
     help='use --protein to define protein query (e.g. "Pyruvate dehydrogenase")',
 )
 args_parser.add_argument(
+    "--database",
+    dest="database",
+    default="protein",
+    help='NCBI database to query (e.g. "protein")',
+)
+args_parser.add_argument(
     "--group",
     dest="grouping",
     required=True,
