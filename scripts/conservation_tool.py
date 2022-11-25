@@ -14,7 +14,9 @@ import statistics
 from collections import Counter
 from shutil import rmtree
 
+# A temporary solution to display the dataframe at the end - in the final version I hope to output a PDF report.
 pd.set_option('display.max_rows', 1000)
+
 #### ---- FUNCTIONS ---- ####
 
 #####################################################################################
@@ -26,10 +28,13 @@ pd.set_option('display.max_rows', 1000)
 #####################################################################################
 
 def checkDirs(dirs_list):
+    # Command line argument will bypass the interactive elements
     if args.force == True:
         for dir in dirs_list:
+            # Checking nothing exists before making a directory...
             if not os.path.exists(dir):
                 os.mkdir(dir)
+            # A previous directory is found! Removing it, and making a new one.
             else:
                 rmtree(dir)
                 os.mkdir(dir)
@@ -338,6 +343,12 @@ def groupChoose(group_options):
     return selected
 
 
+#####################################################################################
+# A function for allowing the user to view conservation plots of the groups of      #
+# interest, one at a time. Ideally I'd like to find some other more elegant way     #
+# of doing this, but for now this will suffice.                                     #
+#####################################################################################
+
 def chooseConsPlot(group_options):
     choices = []
     print("\nPlease pick a group number to produce and save a conservation plot for that group. To go back to the previous screen, enter \"q\":\n Please note, in order to continue after producing a plot, you must close the plot window.")
@@ -362,6 +373,12 @@ def chooseConsPlot(group_options):
             subprocess.call(f"plotcon -sequences {msa_path}group_{input_number}.msf -winsize {args.winsize} -graph png", shell = True)
             print("Plot saved")
 
+
+#####################################################################################
+# A function for searching the local prosite database using the groups acquired     #
+# from the user's input.                                                            #
+#####################################################################################
+
 def prositeGroupSearch(user_selection):
     for selection in user_selection:
         for accession, sequence in zip(seq_data.loc[seq_data["Group_ID"] == selection]["Accession"], seq_data.loc[seq_data["Group_ID"] == selection]["Sequence"]):
@@ -375,6 +392,8 @@ def prositeGroupSearch(user_selection):
                     seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = re.findall(r'(?<=Motif = )(.+)', contents)
                 except:
                     pass
+
+
 #def prositeGroupSearchs(user_selection):
 #    for selection in user_selection:
 #        with open(f"{fasta_path}group_{selection}.fa", "r") as fasta_group:
@@ -598,6 +617,7 @@ else:
     clusterfile = list(filter(None, clusterfile))
 
 # Input > Process > Output... Repeat!
+# No grouping option chosen then...:
 if args.nogrouping:
     #Basically doing the same as in groupwiseMSA, but for only one group. Still using list (of one) bc
     #it makes it easier to reuse the groupDisplay function
@@ -609,7 +629,7 @@ if args.nogrouping:
     )
     cons_summary = groupDisplay(seq_data, cons_output)
     print(cons_summary)
-
+# Default option...:
 else:
     cluster_dict = clusterIndexer(clusterfile)
     group_filenames = groupFasta(cluster_dict)
@@ -620,8 +640,10 @@ else:
     # Made that all work within the groupFasta function already.
     seq_data = seq_data.dropna()
 
+    # Continuing with the process...
     cons_summary, group_options = groupDisplay(seq_data, cons_output)
     print(cons_summary)
     user_selection = groupChoose(group_options)
     temp_var = prositeGroupSearch(user_selection)
+    # Final output! This dataframe output version will hopefully be improved upon, and be a PDF report instead. Need to work out how to do that.
     print(seq_data[seq_data['Group_ID'].isin(user_selection)])
