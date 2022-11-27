@@ -83,6 +83,7 @@ def gpcWrangle(sequence_data):
     for entry in seq_data_list:
         fields = entry.split("\t")
         accession_code = fields[0]
+        # This next line needs to be changed ASAP. It should extract the protein name from the record, but I don't know how to do that without mistakes yet.
         protein_name = args.grouping
         full_name = fields[1]
         genus = full_name.split()[0]
@@ -427,6 +428,12 @@ args_parser.add_argument(
     help='NCBI database to query (e.g. "protein")',
 )
 args_parser.add_argument(
+    "--general-protein-search",
+    dest="general",
+    action="store_true",
+    help='This will search the whole NCBI record for the protein name of interest, instead of just the protein_name section',
+)
+args_parser.add_argument(
     "--group",
     dest="grouping",
     required=True,
@@ -514,18 +521,33 @@ summary_path = "Summary_files/"
 prosite_path = "Fasta_files/prosite_files/"
 
 # Fetching sequence query info
-search_query = (
-    subprocess.check_output(
-        (
-            f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
-            f' {args.grouping}[Organism] NOT partial[Properties]" | xtract -pattern'
-            " ENTREZ_DIRECT -element Count"
-        ),
-        shell=True,
+if args.general:
+    search_query = (
+        subprocess.check_output(
+            (
+                f'esearch -db "{args.database}" -query "{args.protein} AND'
+                f' {args.grouping}[Organism] NOT partial[Properties]" | xtract -pattern'
+                " ENTREZ_DIRECT -element Count"
+            ),
+            shell=True,
+        )
+        .decode("utf-8")
+        .strip()
     )
-    .decode("utf-8")
-    .strip()
-)
+else:
+    search_query = (
+        subprocess.check_output(
+            (
+                f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
+                f' {args.grouping}[Organism] NOT partial[Properties]" | xtract -pattern'
+                " ENTREZ_DIRECT -element Count"
+            ),
+            shell=True,
+        )
+        .decode("utf-8")
+        .strip()
+    )
+
 if search_query == None:
     print("Something has gone wrong retrieving your search from NCBI. You might have to try again later, or check your network.")
 
@@ -561,15 +583,26 @@ while continue_ornot not in {"y", "n"}:
 # times for sequences to download...
 
 print("Fetching sequences...")
-sequence_data = subprocess.check_output(
-    (
-        f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
-        f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
-        " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
-        " INSDSeq_sequence"
-    ),
-    shell=True,
-).decode("utf-8")
+if args.general:
+    sequence_data = subprocess.check_output(
+        (
+            f'esearch -db "{args.database}" -query "{args.protein} AND'
+            f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
+            " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
+            " INSDSeq_sequence"
+        ),
+        shell=True,
+    ).decode("utf-8")
+else:
+    sequence_data = subprocess.check_output(
+        (
+            f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
+            f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
+            " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
+            " INSDSeq_sequence"
+        ),
+        shell=True,
+    ).decode("utf-8")
 
 #### ---- DEBUGGING SECTION - to save time on NCBI queries, saves to file instead, and subsequently reads from that. ---- ####
 #         run once with first two lines uncommented, then comment out subprocess above and uncomment third line.
