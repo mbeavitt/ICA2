@@ -13,8 +13,12 @@ import os
 import statistics
 from collections import Counter
 from shutil import rmtree
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
-# A temporary solution to display the dataframe at the end - in the final version I hope to output a PDF report.
+
+# A temporary solution to display the dataframe at the end - in the "final version" I hope to output a PDF report.
 pd.set_option('display.max_rows', 1000)
 
 #### ---- FUNCTIONS ---- ####
@@ -43,7 +47,7 @@ def checkDirs(dirs_list):
     continue_pipeline = True
     for dir in dirs_list:
         if os.path.exists(dir):
-            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\n Alternatively, would you like to overwrite your files...?")
+            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\nAlternatively, would you like to overwrite your files...?")
             continue_pipeline = False
             break
 
@@ -56,7 +60,7 @@ def checkDirs(dirs_list):
             continue_ornot = input("Overwrite?  y/n:")
 
         if continue_ornot == "y":
-            print("Files will be overwritten.")
+            print("Files will be overwritten.\nSearching NCBI...")
             for dir in dirs_list:
                 if not os.path.exists(dir):
                     os.mkdir(dir)
@@ -71,19 +75,19 @@ def checkDirs(dirs_list):
 # A function to wrangle gpc file format into a dataframe. The method for getting    #
 # the protein name may seem redundant, but it's because I want to leave space       #
 # for adding the option to potentially select multiple related proteins in future   #
+# NOTE: This functionality has been added now (per se) so this needs fixed          #
 #####################################################################################
 
 def gpcWrangle(sequence_data):
     print("Wrangling data...")
     seq_data_list = sequence_data.split("\n")
     seq_data_list = list(filter(None, seq_data_list))
-
     list_of_rows = []
     # Slightly roundabout way of getting values to populate my dataframe...
     for entry in seq_data_list:
         fields = entry.split("\t")
         accession_code = fields[0]
-        # This next line needs to be changed ASAP. It should extract the protein name from the record, but I don't know how to do that without mistakes yet.
+        # This next line needs to be changed ASAP. It should extract the protein name from the record, but I don't know how to do that without mistakes yet. This is fine for one protein, but when the general protein search argument is specified, the output will not be correct.
         protein_name = args.grouping
         full_name = fields[1]
         genus = full_name.split()[0]
@@ -172,22 +176,41 @@ def groupFasta(cluster_dict):
 def groupwiseMSA(group_filenames):
     print("Generating secondary alignments...")
     cons_output = []
-    for file in group_filenames:
-        subprocess.check_output(
-            (
-                f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
-                f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
-            ),
-            shell=True,
-        )
-        outfile = subprocess.check_output(
-            #/dev/stdout used to route output to variable.
-            f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
-            stderr=subprocess.DEVNULL,
-            shell=True,
-        )
-        cons_output.append(outfile)
-    return cons_output
+
+    if args.cluster != None:
+        for file in group_filenames:
+            subprocess.check_output(
+                (
+                    f"clustalo --auto --force --threads={args.threads} --cluster-size={args.cluster} --outfmt=msf -i"
+                    f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
+                ),
+                shell=True,
+            )
+            outfile = subprocess.check_output(
+                #/dev/stdout used to route output to variable.
+                f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
+                stderr=subprocess.DEVNULL,
+                shell=True,
+            )
+            cons_output.append(outfile)
+        return cons_output
+    else:
+        for file in group_filenames:
+            subprocess.check_output(
+                (
+                    f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
+                    f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
+                ),
+                shell=True,
+            )
+            outfile = subprocess.check_output(
+                #/dev/stdout used to route output to variable.
+                f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
+                stderr=subprocess.DEVNULL,
+                shell=True,
+            )
+            cons_output.append(outfile)
+        return cons_output
 
 
 #####################################################################################
@@ -283,7 +306,7 @@ def groupDisplay(seq_data, cons_output):
 
 def groupChoose(group_options):
     possible_choices = []
-    print(group_options)
+#    print(group_options)
     print(
         'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish, enter'
         ' "f":'
@@ -380,19 +403,37 @@ def chooseConsPlot(group_options):
 # from the user's input.                                                            #
 #####################################################################################
 
-def prositeGroupSearch(user_selection):
-    for selection in user_selection:
-        for accession, sequence in zip(seq_data.loc[seq_data["Group_ID"] == selection]["Accession"], seq_data.loc[seq_data["Group_ID"] == selection]["Sequence"]):
+def prositeGroupSearch(user_selection=''):
+    if args.nogrouping:
+        for accession, sequence in zip(seq_data["Accession"], seq_data["Sequence"]):
             fasta_formatted = ">" + accession + '\n' + sequence
             with open(f"{prosite_path}{accession}.fa", "w") as fasta_format_file:
                 fasta_format_file.write(fasta_formatted)
             subprocess.run(f"patmatmotifs -sequence {prosite_path}{accession}.fa -outfile {prosite_path}{accession}.patmatmotif", stderr = subprocess.DEVNULL, shell = True)
             with open(f"{prosite_path}{accession}.patmatmotif", "r") as patmat:
                 contents = patmat.read()
+                list_of_matches = re.findall(r'(?<=Motif = )(.+)', contents)
+                list_of_matches = ", ".join(list_of_matches)
                 try:
-                    seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = re.findall(r'(?<=Motif = )(.+)', contents)
+                    seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = list_of_matches
                 except:
                     pass
+
+    else:
+        for selection in user_selection:
+            for accession, sequence in zip(seq_data.loc[seq_data["Group_ID"] == selection]["Accession"], seq_data.loc[seq_data["Group_ID"] == selection]["Sequence"]):
+                fasta_formatted = ">" + accession + '\n' + sequence
+                with open(f"{prosite_path}{accession}.fa", "w") as fasta_format_file:
+                    fasta_format_file.write(fasta_formatted)
+                subprocess.run(f"patmatmotifs -sequence {prosite_path}{accession}.fa -outfile {prosite_path}{accession}.patmatmotif", stderr = subprocess.DEVNULL, shell = True)
+                with open(f"{prosite_path}{accession}.patmatmotif", "r") as patmat:
+                    contents = patmat.read()
+                    list_of_matches = re.findall(r'(?<=Motif = )(.+)', contents)
+                    list_of_matches = " ".join(list_of_matches)
+                    try:
+                        seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = list_of_matches
+                    except:
+                        pass
 
 
 #def prositeGroupSearchs(user_selection):
@@ -410,8 +451,8 @@ def prositeGroupSearch(user_selection):
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
 args_parser = argparse.ArgumentParser(
     prog="B214618's Protein conservation tool",
-    description="This program <content to be added>",
-    epilog="<content to be added>",
+    description="This program takes an input of a protein and a taxonomic group, and creates a number of groups using clustal omega's alignments. The user will then choose the group(s) they wish to query against the prosite database for conserved domain hits.",
+    epilog="",
 )
 
 # Adding arguments...
@@ -420,12 +461,6 @@ args_parser.add_argument(
     dest="protein",
     required=True,
     help='use --protein to define protein query (e.g. "Pyruvate dehydrogenase")',
-)
-args_parser.add_argument(
-    "--database",
-    dest="database",
-    default="protein",
-    help='NCBI database to query (e.g. "protein")',
 )
 args_parser.add_argument(
     "--general-protein-search",
@@ -459,12 +494,12 @@ args_parser.add_argument(
 args_parser.add_argument(
     "--threads",
     dest="threads",
-    default=50,
+    default=20,
     type=int,
     help=(
         "--threads takes an integer, and is used to determine how many threads to use"
         " in all processes that allow thread number choices (currently just clustalo)."
-        " Default is 50."
+        " Default is 20."
     ),
 )
 args_parser.add_argument(
@@ -525,7 +560,7 @@ if args.general:
     search_query = (
         subprocess.check_output(
             (
-                f'esearch -db "{args.database}" -query "{args.protein} AND'
+                f'esearch -db "protein" -query "{args.protein} AND'
                 f' {args.grouping}[Organism] NOT partial[Properties]" | xtract -pattern'
                 " ENTREZ_DIRECT -element Count"
             ),
@@ -538,7 +573,7 @@ else:
     search_query = (
         subprocess.check_output(
             (
-                f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
+                f'esearch -db "protein" -query "{args.protein}[Protein Name] AND'
                 f' {args.grouping}[Organism] NOT partial[Properties]" | xtract -pattern'
                 " ENTREZ_DIRECT -element Count"
             ),
@@ -557,15 +592,16 @@ if search_query == 0:
         " search parameters"
     )
     sys.exit()
+
+# A quick few lines to avoid accidental processing of huge volumes of data...
 print(
     "\nThe number of sequences in your search are: "
     + str(search_query)
     + "."
-    + "\n Would you like to continue...? Please note sequence entries >1000 may take a"
+    + "\nWould you like to continue...? Please note sequence entries >1000 may take a"
     " while to process."
 )
 
-# A quick few lines to avoid accidental processing of huge volumes of data...
 continue_ornot = "None"
 while continue_ornot not in {"y", "n"}:
     continue_ornot = input("Please enter y/n:")
@@ -586,7 +622,7 @@ print("Fetching sequences...")
 if args.general:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "{args.database}" -query "{args.protein} AND'
+            f'esearch -db "protein" -query "{args.protein} AND'
             f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
             " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
             " INSDSeq_sequence"
@@ -596,7 +632,7 @@ if args.general:
 else:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "{args.database}" -query "{args.protein}[Protein Name] AND'
+            f'esearch -db "protein" -query "{args.protein}[Protein Name] AND'
             f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
             " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
             " INSDSeq_sequence"
@@ -627,27 +663,50 @@ with open(f"{fasta_path}fasta_formatted.fa", "w") as fasta_formatted_file:
 # Running the primary MSA
 print("Running primary MSA...")
 
+# There is probably a much much more elegant way of handling this, but for now...
 if args.nogrouping:
-    subprocess.run(
-        (
-            "clustalo --force --auto "
-            f" --threads={args.threads} --outfmt=msf -i"
-            f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
-        ),
-        shell=True,
-    )
+    if args.cluster != None:
+        subprocess.run(
+            (
+                "clustalo --force --auto  "
+                f" --cluster-size={args.cluster} --threads={args.threads} --outfmt=msf -i"
+                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+            ),
+            shell=True,
+        )
+    else:
+        subprocess.run(
+            (
+                "clustalo --force --auto  "
+                f" --threads={args.threads} --outfmt=msf -i"
+                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+            ),
+            shell=True,
+        )
 
 else:
-    subprocess.run(
-        (
-            "clustalo --force --auto "
-            f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
-            f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
-        ),
-        shell=True,
-    )
-    clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
-    clusterfile = list(filter(None, clusterfile))
+    if args.cluster != None:
+        subprocess.run(
+            (
+                "clustalo --force --auto  "
+                f" --cluster-size={args.cluster} --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
+                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+            ),
+            shell=True,
+        )
+        clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
+        clusterfile = list(filter(None, clusterfile))
+    else:
+        subprocess.run(
+            (
+                "clustalo --force --auto  "
+                f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
+                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+            ),
+            shell=True,
+        )
+        clusterfile = open(f"{summary_path}clusterfile.txt", "r").read().split("\n")
+        clusterfile = list(filter(None, clusterfile))
 
 # Input > Process > Output... Repeat!
 # No grouping option chosen then...:
@@ -662,6 +721,11 @@ if args.nogrouping:
     )
     cons_summary = groupDisplay(seq_data, cons_output)
     print(cons_summary)
+    prositeGroupSearch()
+    df_tosave = seq_data[['Accession', 'Full_Name', 'Prosite_matches']]
+    df_tosave.dropna()
+    print(df_tosave)
+    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding='utf-8')
 # Default option...:
 else:
     cluster_dict = clusterIndexer(clusterfile)
@@ -676,7 +740,27 @@ else:
     # Continuing with the process...
     cons_summary, group_options = groupDisplay(seq_data, cons_output)
     print(cons_summary)
+    print("THIS SUMMARY HAS BEEN AUTOMATICALLY SAVED IN THE Summary_files FOLDER!\n")
+    print("Please choose one or more groups to query for conserved domains...:\n")
     user_selection = groupChoose(group_options)
-    temp_var = prositeGroupSearch(user_selection)
+    prositeGroupSearch(user_selection)
     # Final output! This dataframe output version will hopefully be improved upon, and be a PDF report instead. Need to work out how to do that.
-    print(seq_data[seq_data['Group_ID'].isin(user_selection)])
+    df_temp = seq_data[seq_data['Group_ID'].isin(user_selection)]
+    df_tosave = seq_data[['Accession', 'Full_Name', 'Prosite_matches']]
+    df_tosave = df_tosave.dropna()
+    # Printing to screen
+    print(df_tosave)
+    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding='utf-8')
+
+# This approach was abandoned due to amount of time required to learn the plotly PdfPages documentation! :(
+#    # Generating a plot of the table and saving it to PDF
+#    fig, ax = plt.subplots()
+#    fig.patch.set_visible(False)
+#    ax.axis('off')
+#    ax.axis('tight')
+#    ax.table(cellText=df_tosave.values, colLabels=df_tosave.columns, loc='center')
+#    fig.tight_layout()
+#
+#    pdf_output = PdfPages(f"{summary_path}prosite_summary.pdf")
+#    pdf_output.savefig(fig, bbox_inches='tight')
+#    pdf_output.close()
