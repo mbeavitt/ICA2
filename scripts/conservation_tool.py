@@ -14,8 +14,8 @@ import statistics
 from collections import Counter
 from shutil import rmtree
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+#import matplotlib.pyplot as plt
+#from matplotlib.backends.backend_pdf import PdfPages
 
 
 # A temporary solution to display the dataframe at the end - in the "final version" I hope to output a PDF report.
@@ -337,11 +337,11 @@ def groupDisplay(seq_data, cons_output):
 
 def groupChoose(group_options):
     possible_choices = []
-    #    print(group_options)
     print(
         'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish,'
         ' enter "f":'
     )
+    # Getting options and showing the user
     for option in group_options:
         possible_choices.append(option)
         print(" -- Group " + option)
@@ -351,6 +351,8 @@ def groupChoose(group_options):
     print(" -- VIEW CONSERVATION PLOTS: p\n")
     user_choice = "None"
     selected = []
+    # Getting user input, handling menu choices.
+    # This bit allows the user to only choose from the list of possible picks.
     while user_choice not in possible_choices:
         user_input = input("Selection: ")
         if user_input == "c":
@@ -358,6 +360,7 @@ def groupChoose(group_options):
             print("\nGroups in selection:")
             print("No groups selected")
             continue
+        # Sending the user to another menu for plotcon
         if user_input == "p":
             chooseConsPlot(group_options)
             print(
@@ -371,6 +374,7 @@ def groupChoose(group_options):
             print(" -- CLEAR CHOICES: c")
             print(" -- VIEW CONSERVATION PLOTS: p\n")
             continue
+        # Exit statement
         if user_input == "f":
             is_empty = len(set(selected)) == 0
             if is_empty == False:
@@ -395,6 +399,7 @@ def groupChoose(group_options):
             selected.append(possible_choices[input_number])
             print("\nGroups in selection:")
             print(set(selected))
+        # Invalid option check
         else:
             print("Please choose a valid group number or an option")
 
@@ -415,22 +420,26 @@ def chooseConsPlot(group_options):
         ' group. To go back to the previous screen, enter "q":\n Please note, in order'
         " to continue after producing a plot, you must close the plot window."
     )
+    # Setting possible options
     for option in group_options:
         choices.append(option)
         print(" -- Group " + option)
     print("\n -- GO BACK: q")
     user_choice = None
     while user_choice not in choices:
+        # Taking user input
         user_input = None
         user_input = input("Selection: ")
         if user_input == "q":
             print("\n\n")
             break
+        # Checking user input and setting it as a variable
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
         else:
             print("Please choose a valid group number")
             continue
+        # Calling plotcon commands from the comand line
         if input_number > -1 and input_number < len(choices):
             subprocess.call(
                 (
@@ -460,6 +469,8 @@ def chooseConsPlot(group_options):
 def prositeGroupSearch(user_selection=""):
     if args.nogrouping:
         for accession, sequence in zip(seq_data["Accession"], seq_data["Sequence"]):
+            # Making individual fasta files as variables, then writing them to a file.
+            # The patmatmotif analysis is carried out once every loop on the single file.
             fasta_formatted = ">" + accession + "\n" + sequence
             with open(f"{prosite_path}{accession}.fa", "w") as fasta_format_file:
                 fasta_format_file.write(fasta_formatted)
@@ -471,6 +482,7 @@ def prositeGroupSearch(user_selection=""):
                 stderr=subprocess.DEVNULL,
                 shell=True,
             )
+            # Opening the resultant file and using regex to add it to the dataframe.
             with open(f"{prosite_path}{accession}.patmatmotif", "r") as patmat:
                 contents = patmat.read()
                 list_of_matches = re.findall(r"(?<=Motif = )(.+)", contents)
