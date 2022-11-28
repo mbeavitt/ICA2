@@ -19,7 +19,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 # A temporary solution to display the dataframe at the end - in the "final version" I hope to output a PDF report.
-pd.set_option('display.max_rows', 1000)
+pd.set_option("display.max_rows", 1000)
 
 #### ---- FUNCTIONS ---- ####
 
@@ -30,6 +30,7 @@ pd.set_option('display.max_rows', 1000)
 # something I've seen other command line programs do before. --force tends to be    #
 # more common in my limited experience.                                             #
 #####################################################################################
+
 
 def checkDirs(dirs_list):
     # Command line argument will bypass the interactive elements
@@ -47,7 +48,11 @@ def checkDirs(dirs_list):
     continue_pipeline = True
     for dir in dirs_list:
         if os.path.exists(dir):
-            print("\nYou have already run an analysis. Please save your data, remove the folders, and try again.\nAlternatively, would you like to overwrite your files...?")
+            print(
+                "\nYou have already run an analysis. Please save your data, remove the"
+                " folders, and try again.\nAlternatively, would you like to overwrite"
+                " your files...?"
+            )
             continue_pipeline = False
             break
 
@@ -77,6 +82,7 @@ def checkDirs(dirs_list):
 # for adding the option to potentially select multiple related proteins in future   #
 # NOTE: This functionality has been added now (per se) so this needs fixed          #
 #####################################################################################
+
 
 def gpcWrangle(sequence_data):
     print("Wrangling data...")
@@ -110,6 +116,7 @@ def gpcWrangle(sequence_data):
 # alignment cluster, and each "value" is a list of index positions in a             #
 # dataframe that can be used to source data about the members of the cluster        #
 #####################################################################################
+
 
 def clusterIndexer(clusterfile):
     print("Building groupings...")
@@ -148,6 +155,7 @@ def clusterIndexer(clusterfile):
 # and return a list of the group file names.                                        #
 #####################################################################################
 
+
 def groupFasta(cluster_dict):
     print("Generating groupwise fasta files...")
     group_filenames = []
@@ -175,6 +183,7 @@ def groupFasta(cluster_dict):
 # stdout if no out file was passed, necessitating writing of yet another file       #
 #####################################################################################
 
+
 def groupwiseMSA(group_filenames):
     print("Generating secondary alignments...")
     cons_output = []
@@ -196,7 +205,7 @@ def groupwiseMSA(group_filenames):
                 shell=True,
             )
             outfile = subprocess.check_output(
-                #/dev/stdout used to route output to variable.
+                # /dev/stdout used to route output to variable.
                 f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
                 stderr=subprocess.DEVNULL,
                 shell=True,
@@ -219,7 +228,7 @@ def groupwiseMSA(group_filenames):
                 shell=True,
             )
             outfile = subprocess.check_output(
-                #/dev/stdout used to route output to variable.
+                # /dev/stdout used to route output to variable.
                 f"cons -sequence {msa_path}{file}.msf -outseq /dev/stdout",
                 stderr=subprocess.DEVNULL,
                 shell=True,
@@ -237,6 +246,7 @@ def groupwiseMSA(group_filenames):
 #    - conserved sequence of group                                                  #
 #####################################################################################
 
+
 def groupDisplay(seq_data, cons_output):
     if args.nogrouping:
         pass
@@ -247,12 +257,12 @@ def groupDisplay(seq_data, cons_output):
         group_options = groupset
         cons_list = []
 
-    #Do I really need to do this??? Isn't it a list already...???? Leaving this in because I don't have time to test.
+        # Do I really need to do this??? Isn't it a list already...???? Leaving this in because I don't have time to test.
         for consensus_seq in cons_output:
             cons_list.append(consensus_seq)
 
-# Writing summaries! All pretty basic, just using a context manager to write a bunch of stuff to a text file
-# really wanted to do pdfs, but ran out of time to learn how to do that unfortunately. The Counter module came in clutch here!
+    # Writing summaries! All pretty basic, just using a context manager to write a bunch of stuff to a text file
+    # really wanted to do pdfs, but ran out of time to learn how to do that unfortunately. The Counter module came in clutch here!
     if args.nogrouping:
         with open(f"{summary_path}nogrouping_summary.txt", "w") as group_summary:
             group_summary.write("\nSUMMARY OF SEARCH ANALYSIS (NO GROUPING):\n\n")
@@ -286,7 +296,9 @@ def groupDisplay(seq_data, cons_output):
                 group_summary.write("\nMOST COMMON GENUSES: \n")
                 group_genus = seq_data.loc[seq_data["Group_ID"] == group]["Genus"]
                 group_name = seq_data.loc[seq_data["Group_ID"] == group]["Full_Name"]
-                group_len = seq_data.loc[seq_data["Group_ID"] == group]["Sequence"].tolist()
+                group_len = seq_data.loc[seq_data["Group_ID"] == group][
+                    "Sequence"
+                ].tolist()
 
                 for genus, count in Counter(group_genus).most_common(10):
                     group_summary.write(genus + ": " + str(count) + "\n")
@@ -322,12 +334,13 @@ def groupDisplay(seq_data, cons_output):
 # into similarity *across* species and genus as well as within.                     #
 #####################################################################################
 
+
 def groupChoose(group_options):
     possible_choices = []
-#    print(group_options)
+    #    print(group_options)
     print(
-        'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish, enter'
-        ' "f":'
+        'Please pick a group number or option, e.g. for "Group 1" enter "1", To finish,'
+        ' enter "f":'
     )
     for option in group_options:
         possible_choices.append(option)
@@ -347,7 +360,10 @@ def groupChoose(group_options):
             continue
         if user_input == "p":
             chooseConsPlot(group_options)
-            print('Please pick a group number or option, e.g. for "Group 1" enter "1", To finish, enter "f":')
+            print(
+                'Please pick a group number or option, e.g. for "Group 1" enter "1", To'
+                ' finish, enter "f":'
+            )
             for option in group_options:
                 print(" -- Group " + option)
             print("\n -- ALL GROUPS: a")
@@ -391,9 +407,14 @@ def groupChoose(group_options):
 # of doing this, but for now this will suffice.                                     #
 #####################################################################################
 
+
 def chooseConsPlot(group_options):
     choices = []
-    print("\nPlease pick a group number to produce and save a conservation plot for that group. To go back to the previous screen, enter \"q\":\n Please note, in order to continue after producing a plot, you must close the plot window.")
+    print(
+        "\nPlease pick a group number to produce and save a conservation plot for that"
+        ' group. To go back to the previous screen, enter "q":\n Please note, in order'
+        " to continue after producing a plot, you must close the plot window."
+    )
     for option in group_options:
         choices.append(option)
         print(" -- Group " + option)
@@ -403,7 +424,7 @@ def chooseConsPlot(group_options):
         user_input = None
         user_input = input("Selection: ")
         if user_input == "q":
-            print('\n\n')
+            print("\n\n")
             break
         if str.isdigit(user_input) == True:
             input_number = int(user_input)
@@ -411,8 +432,22 @@ def chooseConsPlot(group_options):
             print("Please choose a valid group number")
             continue
         if input_number > -1 and input_number < len(choices):
-            subprocess.call(f"plotcon -sequences {msa_path}group_{input_number}.msf -winsize {args.winsize} -graph x11", shell = True)
-            subprocess.call(f"plotcon -sequences {msa_path}group_{input_number}.msf -winsize {args.winsize} -graph png", shell = True)
+            subprocess.call(
+                (
+                    f"plotcon -sequences {msa_path}group_{input_number}.msf "
+                    f"-winsize {args.winsize} "
+                    "-graph x11"
+                ),
+                shell=True,
+            )
+            subprocess.call(
+                (
+                    f"plotcon -sequences {msa_path}group_{input_number}.msf "
+                    f"-winsize {args.winsize} "
+                    "-graph png"
+                ),
+                shell=True,
+            )
             print("Plot saved")
 
 
@@ -421,35 +456,57 @@ def chooseConsPlot(group_options):
 # from the user's input.                                                            #
 #####################################################################################
 
-def prositeGroupSearch(user_selection=''):
+
+def prositeGroupSearch(user_selection=""):
     if args.nogrouping:
         for accession, sequence in zip(seq_data["Accession"], seq_data["Sequence"]):
-            fasta_formatted = ">" + accession + '\n' + sequence
+            fasta_formatted = ">" + accession + "\n" + sequence
             with open(f"{prosite_path}{accession}.fa", "w") as fasta_format_file:
                 fasta_format_file.write(fasta_formatted)
-            subprocess.run(f"patmatmotifs -sequence {prosite_path}{accession}.fa -outfile {prosite_path}{accession}.patmatmotif", stderr = subprocess.DEVNULL, shell = True)
+            subprocess.run(
+                (
+                    f"patmatmotifs -sequence {prosite_path}{accession}.fa "
+                    f"-outfile {prosite_path}{accession}.patmatmotif"
+                ),
+                stderr=subprocess.DEVNULL,
+                shell=True,
+            )
             with open(f"{prosite_path}{accession}.patmatmotif", "r") as patmat:
                 contents = patmat.read()
-                list_of_matches = re.findall(r'(?<=Motif = )(.+)', contents)
+                list_of_matches = re.findall(r"(?<=Motif = )(.+)", contents)
                 list_of_matches = ", ".join(list_of_matches)
                 try:
-                    seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = list_of_matches
+                    seq_data.loc[
+                        seq_data["Accession"] == accession, "Prosite_matches"
+                    ] = list_of_matches
                 except:
                     pass
 
     else:
         for selection in user_selection:
-            for accession, sequence in zip(seq_data.loc[seq_data["Group_ID"] == selection]["Accession"], seq_data.loc[seq_data["Group_ID"] == selection]["Sequence"]):
-                fasta_formatted = ">" + accession + '\n' + sequence
+            for accession, sequence in zip(
+                seq_data.loc[seq_data["Group_ID"] == selection]["Accession"],
+                seq_data.loc[seq_data["Group_ID"] == selection]["Sequence"],
+            ):
+                fasta_formatted = ">" + accession + "\n" + sequence
                 with open(f"{prosite_path}{accession}.fa", "w") as fasta_format_file:
                     fasta_format_file.write(fasta_formatted)
-                subprocess.run(f"patmatmotifs -sequence {prosite_path}{accession}.fa -outfile {prosite_path}{accession}.patmatmotif", stderr = subprocess.DEVNULL, shell = True)
+                subprocess.run(
+                    (
+                        f"patmatmotifs -sequence {prosite_path}{accession}.fa "
+                        f"-outfile {prosite_path}{accession}.patmatmotif"
+                    ),
+                    stderr=subprocess.DEVNULL,
+                    shell=True,
+                )
                 with open(f"{prosite_path}{accession}.patmatmotif", "r") as patmat:
                     contents = patmat.read()
-                    list_of_matches = re.findall(r'(?<=Motif = )(.+)', contents)
+                    list_of_matches = re.findall(r"(?<=Motif = )(.+)", contents)
                     list_of_matches = " ".join(list_of_matches)
                     try:
-                        seq_data.loc[seq_data['Accession'] == accession, 'Prosite_matches'] = list_of_matches
+                        seq_data.loc[
+                            seq_data["Accession"] == accession, "Prosite_matches"
+                        ] = list_of_matches
                     except:
                         pass
 
@@ -459,7 +516,12 @@ def prositeGroupSearch(user_selection=''):
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
 args_parser = argparse.ArgumentParser(
     prog="B214618's Protein conservation tool",
-    description="This program takes an input of a protein and a taxonomic group, and creates a number of groups using clustal omega's alignments. The user will then choose the group(s) they wish to query against the prosite database for conserved domain hits.",
+    description=(
+        "This program takes an input of a protein and a taxonomic group, and creates a"
+        " number of groups using clustal omega's alignments. The user will then choose"
+        " the group(s) they wish to query against the prosite database for conserved"
+        " domain hits."
+    ),
     epilog="",
 )
 
@@ -474,7 +536,10 @@ args_parser.add_argument(
     "--general-protein-search",
     dest="general",
     action="store_true",
-    help='This will search the whole NCBI record for the protein name of interest, instead of just the protein_name section',
+    help=(
+        "This will search the whole NCBI record for the protein name of interest,"
+        " instead of just the protein_name section"
+    ),
 )
 args_parser.add_argument(
     "--group",
@@ -514,7 +579,7 @@ args_parser.add_argument(
     "--force",
     dest="force",
     action="store_true",
-    help="Use --force to overwrite files. Default is false."
+    help="Use --force to overwrite files. Default is false.",
 )
 args_parser.add_argument(
     "--no-grouping",
@@ -543,17 +608,26 @@ args = args_parser.parse_args()
 try:
     subprocess.Popen("efetch", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 except FileNotFoundError:
-    print("You must install EDirect before continuing - see https://www.ncbi.nlm.nih.gov/books/NBK179288/")
+    print(
+        "You must install EDirect before continuing - see"
+        " https://www.ncbi.nlm.nih.gov/books/NBK179288/"
+    )
 
 try:
     subprocess.Popen("clustalo", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 except FileNotFoundError:
-    print("You must install Clustal Omega before continuing - see http://www.clustal.org/omega/")
+    print(
+        "You must install Clustal Omega before continuing - see"
+        " http://www.clustal.org/omega/"
+    )
 
 try:
     subprocess.Popen("needle", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 except FileNotFoundError:
-    print("You must install EMBOSS Tools before continuing - see https://emboss.sourceforge.net/download/")
+    print(
+        "You must install EMBOSS Tools before continuing - see"
+        " https://emboss.sourceforge.net/download/"
+    )
 
 #### MAIN CODE ####
 # Checking directories...
@@ -593,7 +667,10 @@ else:
     )
 
 if search_query == None:
-    print("Something has gone wrong retrieving your search from NCBI. You might have to try again later, or check your network.")
+    print(
+        "Something has gone wrong retrieving your search from NCBI. You might have to"
+        " try again later, or check your network."
+    )
 
 if search_query == 0:
     print(
@@ -631,7 +708,7 @@ print("Fetching sequences...")
 if args.general:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "protein"'
+            'esearch -db "protein"'
             f' -query "{args.protein} AND'
             f' {args.grouping}[Organism] NOT partial[Properties]"'
             "  | efetch -format gpc "
@@ -646,7 +723,7 @@ if args.general:
 else:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "protein"'
+            'esearch -db "protein"'
             f' -query "{args.protein}[Protein Name] AND'
             f' {args.grouping}[Organism] NOT partial[Properties]" '
             "  | efetch -format gpc "
@@ -690,11 +767,11 @@ if args.nogrouping:
                 "clustalo "
                 "--force "
                 "--auto  "
-                f'--cluster-size={args.cluster} '
-                f'--threads={args.threads} '
+                f"--cluster-size={args.cluster} "
+                f"--threads={args.threads} "
                 "--outfmt=msf "
-                f'-i {fasta_path}fasta_formatted.fa '
-                f'-o {msa_path}primary_align.msf'
+                f"-i {fasta_path}fasta_formatted.fa "
+                f"-o {msa_path}primary_align.msf"
             ),
             shell=True,
         )
@@ -704,10 +781,10 @@ if args.nogrouping:
                 "clustalo "
                 "--force "
                 "--auto  "
-                f'--threads={args.threads} '
+                f"--threads={args.threads} "
                 "--outfmt=msf "
-                f'-i {fasta_path}fasta_formatted.fa '
-                f'-o {msa_path}primary_align.msf'
+                f"-i {fasta_path}fasta_formatted.fa "
+                f"-o {msa_path}primary_align.msf"
             ),
             shell=True,
         )
@@ -719,12 +796,12 @@ else:
                 "clustalo "
                 "--force "
                 "--auto  "
-                f' --cluster-size={args.cluster} '
-                f' --threads={args.threads} '
-                f' --clustering-out={summary_path}clusterfile.txt '
+                f" --cluster-size={args.cluster} "
+                f" --threads={args.threads} "
+                f" --clustering-out={summary_path}clusterfile.txt "
                 " --outfmt=msf "
-                f'-i {fasta_path}fasta_formatted.fa '
-                f'-o {msa_path}primary_align.msf'
+                f"-i {fasta_path}fasta_formatted.fa "
+                f"-o {msa_path}primary_align.msf"
             ),
             shell=True,
         )
@@ -736,11 +813,11 @@ else:
                 "clustalo "
                 "--force "
                 "--auto  "
-                f' --threads={args.threads} '
-                f'--clustering-out={summary_path}clusterfile.txt '
-                f'--outfmt=msf '
-                f'-i {fasta_path}fasta_formatted.fa '
-                f'-o {msa_path}primary_align.msf'
+                f" --threads={args.threads} "
+                f"--clustering-out={summary_path}clusterfile.txt "
+                "--outfmt=msf "
+                f"-i {fasta_path}fasta_formatted.fa "
+                f"-o {msa_path}primary_align.msf"
             ),
             shell=True,
         )
@@ -750,9 +827,9 @@ else:
 # Input > Process > Output... Repeat!
 # No grouping option chosen then...:
 if args.nogrouping:
-    #Basically doing the same as in groupwiseMSA, but for only one group
+    # Basically doing the same as in groupwiseMSA, but for only one group
     cons_output = subprocess.check_output(
-        #/dev/stdout used to route output to variable.
+        # /dev/stdout used to route output to variable.
         f"cons -sequence {msa_path}primary_align.msf -outseq /dev/stdout",
         stderr=subprocess.DEVNULL,
         shell=True,
@@ -760,10 +837,10 @@ if args.nogrouping:
     cons_summary = groupDisplay(seq_data, cons_output)
     print(cons_summary)
     prositeGroupSearch()
-    df_tosave = seq_data[['Accession', 'Full_Name', 'Prosite_matches']]
+    df_tosave = seq_data[["Accession", "Full_Name", "Prosite_matches"]]
     df_tosave.dropna()
     print(df_tosave)
-    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding='utf-8')
+    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding="utf-8")
 # Default option...:
 else:
     cluster_dict = clusterIndexer(clusterfile)
@@ -783,12 +860,12 @@ else:
     user_selection = groupChoose(group_options)
     prositeGroupSearch(user_selection)
     # Final output! This dataframe output version will hopefully be improved upon, and be a PDF report instead. Need to work out how to do that.
-    df_temp = seq_data[seq_data['Group_ID'].isin(user_selection)]
-    df_tosave = seq_data[['Accession', 'Full_Name', 'Prosite_matches']]
+    df_temp = seq_data[seq_data["Group_ID"].isin(user_selection)]
+    df_tosave = seq_data[["Accession", "Full_Name", "Prosite_matches"]]
     df_tosave = df_tosave.dropna()
     # Printing to screen
     print(df_tosave)
-    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding='utf-8')
+    df_tosave.to_csv(f"{summary_path}prosite_summary.csv", encoding="utf-8")
 
 # This approach was abandoned due to amount of time required to learn the plotly PdfPages documentation! :(
 #    # Generating a plot of the table and saving it to PDF
