@@ -134,8 +134,9 @@ def clusterIndexer(clusterfile):
     for key in list(cluster_dict.keys()):
         cluster_dict[str(count)] = cluster_dict.pop(key, None)
         count += 1
+    # Placeholder for potential to do something different if there's only one group. Didn't get around to coding this unfortunately
     if len(cluster_dict.keys()) == 1:
-        print("Skip to final stage <to be coded>")
+        print("")
     if len(cluster_dict.keys()) == 0:
         print("Something has gone terribly wrong. Try expanding your search...?")
         sys.exit()
@@ -151,6 +152,7 @@ def groupFasta(cluster_dict):
     print("Generating groupwise fasta files...")
     group_filenames = []
     for key in cluster_dict.keys():
+        # Indexing the dataframe and writing groupwise multiple fasta files for the group MSA stage
         index_list = cluster_dict[key]
         for index in index_list:
             seq_data.loc[int(index), "Group_ID"] = key
@@ -176,13 +178,20 @@ def groupFasta(cluster_dict):
 def groupwiseMSA(group_filenames):
     print("Generating secondary alignments...")
     cons_output = []
-
+    # A slightly messy way of accomodating different arguments passed. I'm sure there's a better way of doing this.
+    # This handles custom cluster sizes
     if args.cluster != None:
         for file in group_filenames:
             subprocess.check_output(
                 (
-                    f"clustalo --auto --force --threads={args.threads} --cluster-size={args.cluster} --outfmt=msf -i"
-                    f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
+                    "clustalo "
+                    "--auto "
+                    "--force "
+                    f"--threads={args.threads} "
+                    f"--cluster-size={args.cluster}"
+                    " --outfmt=msf "
+                    f"-i {fasta_path}{file}.fa "
+                    f"-o {msa_path}{file}.msf"
                 ),
                 shell=True,
             )
@@ -195,11 +204,17 @@ def groupwiseMSA(group_filenames):
             cons_output.append(outfile)
         return cons_output
     else:
+        # If no custom cluster size is specified...
         for file in group_filenames:
             subprocess.check_output(
                 (
-                    f"clustalo --auto --force --threads={args.threads} --outfmt=msf -i"
-                    f" {fasta_path}{file}.fa -o {msa_path}{file}.msf"
+                    "clustalo "
+                    "--auto "
+                    "--force "
+                    f"--threads={args.threads} "
+                    "--outfmt=msf "
+                    f"-i {fasta_path}{file}.fa "
+                    f"-o {msa_path}{file}.msf"
                 ),
                 shell=True,
             )
@@ -226,15 +241,18 @@ def groupDisplay(seq_data, cons_output):
     if args.nogrouping:
         pass
     else:
+        # Getting a set of all the possible groups and sorting them
         groupset = list(set(seq_data["Group_ID"]))
         groupset.sort(key=int)
         group_options = groupset
         cons_list = []
 
-    #Do I really need to do this??? Isn't it a list already...????
+    #Do I really need to do this??? Isn't it a list already...???? Leaving this in because I don't have time to test.
         for consensus_seq in cons_output:
             cons_list.append(consensus_seq)
 
+# Writing summaries! All pretty basic, just using a context manager to write a bunch of stuff to a text file
+# really wanted to do pdfs, but ran out of time to learn how to do that unfortunately. The Counter module came in clutch here!
     if args.nogrouping:
         with open(f"{summary_path}nogrouping_summary.txt", "w") as group_summary:
             group_summary.write("\nSUMMARY OF SEARCH ANALYSIS (NO GROUPING):\n\n")
@@ -436,16 +454,6 @@ def prositeGroupSearch(user_selection=''):
                         pass
 
 
-#def prositeGroupSearchs(user_selection):
-#    for selection in user_selection:
-#        with open(f"{fasta_path}group_{selection}.fa", "r") as fasta_group:
-#            groupfile_list = fasta_group.read().split('>')
-#            for item in groupfile_list:
-#                filename_string = item.split('\n')[0] + ".fa"
-#                with open(f"{plotcon_path}{filename_string}", "w") as patmatseq:
-#                    patmatseq.write(">")
-#                    patmatseq.write(item)
-
 #### INITIALIZING AN ARGUMENT PARSER AND POPULATING IT ####
 
 # Initializing a parser object, to facilitate command line arguments to be passed to the program
@@ -548,6 +556,7 @@ except FileNotFoundError:
     print("You must install EMBOSS Tools before continuing - see https://emboss.sourceforge.net/download/")
 
 #### MAIN CODE ####
+# Checking directories...
 
 checkDirs(["Fasta_files", "MSA_files", "Summary_files", "Fasta_files/prosite_files"])
 fasta_path = "Fasta_files/"
@@ -622,20 +631,30 @@ print("Fetching sequences...")
 if args.general:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "protein" -query "{args.protein} AND'
-            f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
-            " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
-            " INSDSeq_sequence"
+            f'esearch -db "protein"'
+            f' -query "{args.protein} AND'
+            f' {args.grouping}[Organism] NOT partial[Properties]"'
+            "  | efetch -format gpc "
+            "  | xtract -pattern INSDSeq "
+            "  -element "
+            "  INSDSeq_accession-version "
+            "  INSDSeq_organism "
+            "  INSDSeq_sequence "
         ),
         shell=True,
     ).decode("utf-8")
 else:
     sequence_data = subprocess.check_output(
         (
-            f'esearch -db "protein" -query "{args.protein}[Protein Name] AND'
-            f' {args.grouping}[Organism] NOT partial[Properties]" | efetch -format gpc |'
-            " xtract -pattern INSDSeq -element INSDSeq_accession-version INSDSeq_organism"
-            " INSDSeq_sequence"
+            f'esearch -db "protein"'
+            f' -query "{args.protein}[Protein Name] AND'
+            f' {args.grouping}[Organism] NOT partial[Properties]" '
+            "  | efetch -format gpc "
+            "  | xtract -pattern INSDSeq "
+            "  -element "
+            "  INSDSeq_accession-version "
+            "  INSDSeq_organism "
+            "  INSDSeq_sequence"
         ),
         shell=True,
     ).decode("utf-8")
@@ -668,18 +687,27 @@ if args.nogrouping:
     if args.cluster != None:
         subprocess.run(
             (
-                "clustalo --force --auto  "
-                f" --cluster-size={args.cluster} --threads={args.threads} --outfmt=msf -i"
-                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+                "clustalo "
+                "--force "
+                "--auto  "
+                f'--cluster-size={args.cluster} '
+                f'--threads={args.threads} '
+                "--outfmt=msf "
+                f'-i {fasta_path}fasta_formatted.fa '
+                f'-o {msa_path}primary_align.msf'
             ),
             shell=True,
         )
     else:
         subprocess.run(
             (
-                "clustalo --force --auto  "
-                f" --threads={args.threads} --outfmt=msf -i"
-                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+                "clustalo "
+                "--force "
+                "--auto  "
+                f'--threads={args.threads} '
+                "--outfmt=msf "
+                f'-i {fasta_path}fasta_formatted.fa '
+                f'-o {msa_path}primary_align.msf'
             ),
             shell=True,
         )
@@ -688,9 +716,15 @@ else:
     if args.cluster != None:
         subprocess.run(
             (
-                "clustalo --force --auto  "
-                f" --cluster-size={args.cluster} --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
-                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+                "clustalo "
+                "--force "
+                "--auto  "
+                f' --cluster-size={args.cluster} '
+                f' --threads={args.threads} '
+                f' --clustering-out={summary_path}clusterfile.txt '
+                " --outfmt=msf "
+                f'-i {fasta_path}fasta_formatted.fa '
+                f'-o {msa_path}primary_align.msf'
             ),
             shell=True,
         )
@@ -699,9 +733,14 @@ else:
     else:
         subprocess.run(
             (
-                "clustalo --force --auto  "
-                f" --threads={args.threads} --clustering-out={summary_path}clusterfile.txt --outfmt=msf -i"
-                f" {fasta_path}fasta_formatted.fa -o {msa_path}primary_align.msf"
+                "clustalo "
+                "--force "
+                "--auto  "
+                f' --threads={args.threads} '
+                f'--clustering-out={summary_path}clusterfile.txt '
+                f'--outfmt=msf '
+                f'-i {fasta_path}fasta_formatted.fa '
+                f'-o {msa_path}primary_align.msf'
             ),
             shell=True,
         )
@@ -711,8 +750,7 @@ else:
 # Input > Process > Output... Repeat!
 # No grouping option chosen then...:
 if args.nogrouping:
-    #Basically doing the same as in groupwiseMSA, but for only one group. Still using list (of one) bc
-    #it makes it easier to reuse the groupDisplay function
+    #Basically doing the same as in groupwiseMSA, but for only one group
     cons_output = subprocess.check_output(
         #/dev/stdout used to route output to variable.
         f"cons -sequence {msa_path}primary_align.msf -outseq /dev/stdout",
