@@ -77,7 +77,7 @@ def checkDirs(dirs_list):
 
 
 #####################################################################################
-# A function to wrangle gpc file format into a dataframe. The method for getting    #
+# A function to wrangle gpc file format output into a dataframe. The method for     #
 # the protein name may seem redundant, but it's because I want to leave space       #
 # for adding the option to potentially select multiple related proteins in future   #
 # NOTE: This functionality has been added now (per se) so this needs fixed          #
@@ -384,7 +384,7 @@ def groupChoose(group_options):
                 print("\n")
             else:
                 print("No groups selected")
-                os.exit()
+                sys.exit()
             break
         if user_input == "a":
             selected = possible_choices
@@ -625,6 +625,7 @@ except FileNotFoundError:
         "You must install EDirect before continuing - see"
         " https://www.ncbi.nlm.nih.gov/books/NBK179288/"
     )
+    sys.exit()
 
 try:
     subprocess.Popen("clustalo", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -633,6 +634,7 @@ except FileNotFoundError:
         "You must install Clustal Omega before continuing - see"
         " http://www.clustal.org/omega/"
     )
+    sys.exit()
 
 try:
     subprocess.Popen("needle", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -641,6 +643,7 @@ except FileNotFoundError:
         "You must install EMBOSS Tools before continuing - see"
         " https://emboss.sourceforge.net/download/"
     )
+    sys.exit()
 
 #### MAIN CODE ####
 # Checking directories...
