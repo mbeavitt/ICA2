@@ -384,6 +384,7 @@ def groupChoose(group_options):
                 print("\n")
             else:
                 print("No groups selected")
+                os.exit()
             break
         if user_input == "a":
             selected = possible_choices
@@ -598,7 +599,7 @@ args_parser.add_argument(
     dest="nogrouping",
     action="store_true",
     help=(
-        "if --no-grouping is passed as an argument, only the first sequence alignment"
+        "if --no-grouping is passed as an argument, only the first sequence alignment "
         "will be performed."
     ),
 )
